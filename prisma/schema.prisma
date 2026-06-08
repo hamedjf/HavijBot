@@ -1,0 +1,218 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum OrderType {
+  SERVICE_PURCHASE
+  SERVICE_RENEWAL
+  WALLET_TOPUP
+}
+
+enum OrderStatus {
+  DRAFT
+  WAITING_PAYMENT
+  WAITING_ADMIN
+  REJECTED
+  PAID
+  PROVISIONING
+  PROVISIONED
+  FAILED
+}
+
+enum PaymentMethod {
+  CARD_TO_CARD
+  WALLET
+  MIXED
+}
+
+enum PaymentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum WalletTransactionType {
+  TOPUP
+  PURCHASE
+  REFERRAL_REWARD
+  REFUND
+  ADJUSTMENT
+}
+
+enum WalletTransactionStatus {
+  PENDING
+  POSTED
+  VOID
+}
+
+enum ContentKind {
+  TRAINING
+  SOFTWARE
+}
+
+enum ContentType {
+  TEXT
+  PHOTO
+  DOCUMENT
+  VIDEO
+  LINK
+}
+
+model TelegramUser {
+  id                String              @id @default(uuid())
+  telegramId        BigInt              @unique
+  referralCode      String              @unique
+  referredByUserId  String?
+  referralRewardGranted Boolean         @default(false)
+  username          String?
+  firstName         String?
+  lastName          String?
+  isBlocked         Boolean             @default(false)
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  orders            Order[]
+  services          PurchasedService[]
+  walletTransactions WalletTransaction[]
+  referredBy        TelegramUser?       @relation("UserReferrals", fields: [referredByUserId], references: [id])
+  referrals         TelegramUser[]      @relation("UserReferrals")
+}
+
+model PlanCategory {
+  id                    String   @id @default(uuid())
+  title                 String
+  slug                  String   @unique
+  remnawaveSquadUuid    String
+  isEnabled             Boolean  @default(true)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  plans                 Plan[]
+}
+
+model Plan {
+  id             String       @id @default(uuid())
+  categoryId     String
+  title          String
+  volumeGb       Int
+  durationDays   Int
+  priceToman     Int
+  isEnabled      Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  category       PlanCategory @relation(fields: [categoryId], references: [id])
+  orders         Order[]
+}
+
+model Order {
+  id                    String        @id @default(uuid())
+  userId                String
+  type                  OrderType
+  status                OrderStatus   @default(DRAFT)
+  paymentMethod         PaymentMethod?
+  amountToman           Int
+  discountCodeId        String?
+  discountAmountToman   Int           @default(0)
+  walletAppliedToman    Int           @default(0)
+  cardAmountToman       Int?
+  requestedUsername     String?
+  finalUsername         String?
+  planId                String?
+  targetServiceId       String?
+  renewalVolumeGb       Int?
+  renewalDurationDays   Int?
+  walletTopupAmountToman Int?
+  failureReason         String?
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+  user                  TelegramUser  @relation(fields: [userId], references: [id])
+  plan                  Plan?         @relation(fields: [planId], references: [id])
+  discountCode          DiscountCode? @relation(fields: [discountCodeId], references: [id])
+  paymentReceipts       PaymentReceipt[]
+  service               PurchasedService? @relation("CreatedService")
+  targetService         PurchasedService? @relation("RenewalOrders", fields: [targetServiceId], references: [id])
+  walletTransactions    WalletTransaction[]
+}
+
+model DiscountCode {
+  id              String   @id @default(uuid())
+  code            String   @unique
+  title           String?
+  percentOff      Int?
+  amountOffToman  Int?
+  maxUses         Int?
+  usedCount       Int      @default(0)
+  expiresAt       DateTime?
+  isEnabled       Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  orders          Order[]
+}
+
+model PaymentReceipt {
+  id                String        @id @default(uuid())
+  orderId           String
+  telegramFileId    String
+  status            PaymentStatus @default(PENDING)
+  adminTelegramId   BigInt?
+  adminNote         String?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  order             Order         @relation(fields: [orderId], references: [id])
+}
+
+model WalletTransaction {
+  id              String                   @id @default(uuid())
+  userId          String
+  orderId         String?
+  type            WalletTransactionType
+  status          WalletTransactionStatus  @default(POSTED)
+  amountToman     Int
+  description     String?
+  createdAt       DateTime                 @default(now())
+  user            TelegramUser             @relation(fields: [userId], references: [id])
+  order           Order?                   @relation(fields: [orderId], references: [id])
+}
+
+model PurchasedService {
+  id                    String       @id @default(uuid())
+  userId                String
+  orderId               String       @unique
+  planId                String
+  remnawaveUserUuid     String
+  remnawaveShortUuid    String?
+  username              String
+  subscriptionUrl       String
+  volumeGb              Int
+  expiresAt             DateTime
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime     @updatedAt
+  user                  TelegramUser @relation(fields: [userId], references: [id])
+  order                 Order        @relation("CreatedService", fields: [orderId], references: [id])
+  renewalOrders         Order[]      @relation("RenewalOrders")
+}
+
+model AdminContent {
+  id              String      @id @default(uuid())
+  kind            ContentKind
+  contentType     ContentType
+  title           String
+  body            String?
+  telegramFileId  String?
+  isEnabled       Boolean     @default(true)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+}
+
+model AuditLog {
+  id                String   @id @default(uuid())
+  actorTelegramId   BigInt?
+  action            String
+  entityType        String?
+  entityId          String?
+  metadata          Json?
+  createdAt         DateTime @default(now())
+}

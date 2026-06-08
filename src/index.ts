@@ -1,0 +1,33 @@
+import express from "express";
+import { config } from "./config.js";
+import { createBot } from "./bot/create-bot.js";
+import { logger } from "./logger.js";
+import { prisma } from "./db.js";
+
+const bot = createBot();
+const app = express();
+
+app.use(express.json());
+
+app.get("/health", (_req, res) => {
+  res.json({ ok: true });
+});
+
+app.use(bot.webhookCallback("/telegram/webhook"));
+
+const server = app.listen(config.PORT, async () => {
+  const webhookUrl = `${config.PUBLIC_WEBHOOK_URL.replace(/\/$/, "")}/telegram/webhook`;
+  await bot.telegram.setWebhook(webhookUrl);
+  logger.info({ port: config.PORT, webhookUrl }, "HavijBot started");
+});
+
+async function shutdown(signal: string) {
+  logger.info({ signal }, "Shutting down");
+  await bot.telegram.deleteWebhook();
+  await prisma.$disconnect();
+  server.close(() => process.exit(0));
+}
+
+process.once("SIGINT", () => void shutdown("SIGINT"));
+process.once("SIGTERM", () => void shutdown("SIGTERM"));
+

@@ -84,11 +84,10 @@ export class RemnawaveClient {
   }
 
   async getUser(usernameOrUuid: string): Promise<RemnawaveUser | null> {
-    const candidates = [
-      `/api/users/${encodeURIComponent(usernameOrUuid)}`,
-      `/api/users/by-username/${encodeURIComponent(usernameOrUuid)}`,
-      `/api/users/username/${encodeURIComponent(usernameOrUuid)}`
-    ];
+    const encoded = encodeURIComponent(usernameOrUuid);
+    const candidates = isUuid(usernameOrUuid)
+      ? [`/api/users/${encoded}`]
+      : [`/api/users/by-username/${encoded}`];
 
     for (const endpoint of candidates) {
       try {
@@ -182,6 +181,10 @@ export class RemnawaveClient {
       throw formatAxiosError(error, action);
     }
   }
+}
+
+function isUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
 export const remnawaveClient = new RemnawaveClient();

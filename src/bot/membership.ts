@@ -12,13 +12,15 @@ export async function isChannelMember(ctx: BotContext): Promise<boolean> {
   }
 
   try {
-    const member = await ctx.telegram.getChatMember(config.MAIN_CHANNEL_ID, ctx.from.id);
+    const channelId = normalizeChannelId(config.MAIN_CHANNEL_ID);
+    const member = await ctx.telegram.getChatMember(channelId, ctx.from.id);
     return ["creator", "administrator", "member"].includes(member.status);
   } catch (error) {
     logger.warn(
       {
         err: error,
         mainChannelId: config.MAIN_CHANNEL_ID,
+        normalizedMainChannelId: normalizeChannelId(config.MAIN_CHANNEL_ID),
         telegramId: ctx.from.id
       },
       "Channel membership check failed"
@@ -29,4 +31,29 @@ export async function isChannelMember(ctx: BotContext): Promise<boolean> {
 
 export function isAdmin(telegramId?: number): boolean {
   return Boolean(telegramId && config.ADMIN_IDS.includes(telegramId));
+}
+
+export function normalizeChannelId(channelId: string): string | number {
+  const value = channelId.trim();
+  if (/^-?\d+$/.test(value)) {
+    return Number(value);
+  }
+
+  const telegramUrlMatch = value.match(/^(?:https?:\/\/)?t\.me\/(?:c\/)?([^/?#]+)/i);
+  if (telegramUrlMatch?.[1]) {
+    const slug = telegramUrlMatch[1];
+    return slug.startsWith("@") ? slug : `@${slug}`;
+  }
+
+  return value.startsWith("@") ? value : `@${value}`;
+}
+
+export async function getRawMembershipStatus(ctx: BotContext): Promise<string> {
+  if (!ctx.from) {
+    return "No Telegram user in context.";
+  }
+
+  const channelId = normalizeChannelId(config.MAIN_CHANNEL_ID);
+  const member = await ctx.telegram.getChatMember(channelId, ctx.from.id);
+  return `channel=${String(channelId)} user=${ctx.from.id} status=${member.status}`;
 }

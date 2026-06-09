@@ -41,7 +41,7 @@ import {
   handleWalletAmount,
   handleWalletCharge
 } from "./handlers/user-handlers.js";
-import { isChannelMember } from "./membership.js";
+import { getRawMembershipStatus, isAdmin, isChannelMember } from "./membership.js";
 import { replyJoinRequired, replyMainMenu } from "./replies.js";
 
 export function createBot() {
@@ -82,6 +82,19 @@ export function createBot() {
   bot.start(handleStart);
 
   bot.command("admin", handleAdmin);
+  bot.command("debug_membership", async (ctx) => {
+    if (!isAdmin(ctx.from?.id)) {
+      await ctx.reply("Dastresi admin nadari.");
+      return;
+    }
+
+    try {
+      await ctx.reply(await getRawMembershipStatus(ctx));
+    } catch (error) {
+      logger.error({ err: error, mainChannelId: config.MAIN_CHANNEL_ID, telegramId: ctx.from?.id }, "Membership debug failed");
+      await ctx.reply(error instanceof Error ? error.message : "Membership debug failed.");
+    }
+  });
   bot.command("menu", async (ctx) => {
     if (!(await isChannelMember(ctx))) {
       await replyJoinRequired(ctx);

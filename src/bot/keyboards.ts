@@ -1,4 +1,5 @@
 import { Markup } from "telegraf";
+import { normalizeChannelId } from "./membership.js";
 
 export function mainMenu(isAdmin = false) {
   const rows = [
@@ -18,7 +19,8 @@ export function mainMenu(isAdmin = false) {
 }
 
 export function membershipKeyboard(channelId: string) {
-  const channelUrl = channelId.startsWith("@") ? `https://t.me/${channelId.slice(1)}` : undefined;
+  const normalized = normalizeChannelId(channelId);
+  const channelUrl = typeof normalized === "string" && normalized.startsWith("@") ? `https://t.me/${normalized.slice(1)}` : undefined;
   const rows = channelUrl
     ? [[Markup.button.url("Join channel", channelUrl)], [Markup.button.callback("Check membership", "check_membership")]]
     : [[Markup.button.callback("Check membership", "check_membership")]];

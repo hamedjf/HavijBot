@@ -4,7 +4,7 @@ export const BOT_TEXT_DEFINITIONS = [
   { key: "main.myServices", title: "Main menu services button", fallback: "📦 سرویس‌های من" },
   { key: "main.tutorials", title: "Main menu tutorials button", fallback: "📚 آموزش‌ها" },
   { key: "main.apps", title: "Main menu apps button", fallback: "📱 نرم‌افزارها" },
-  { key: "main.wallet", title: "Main menu wallet button", fallback: "💳 شارژ کیف پول" },
+  { key: "main.wallet", title: "Main menu wallet button", fallback: "👛 کیف پول من" },
   { key: "main.referral", title: "Main menu referral button", fallback: "🎁 لینک دعوت" },
   { key: "main.support", title: "Main menu support button", fallback: "🧑‍💻 پشتیبانی" },
   { key: "main.admin", title: "Main menu admin button", fallback: "⚙️ مدیریت" },
@@ -27,6 +27,8 @@ export const BOT_TEXT_DEFINITIONS = [
   ,{ key: "payment.sendReceipt", title: "Send receipt prompt", fallback: "📸 بعد از پرداخت، اسکرین‌شات رسید را همینجا ارسال کنید." }
   ,{ key: "payment.noPending", title: "No pending payment", fallback: "❌ پرداخت در انتظار پیدا نشد. اول از منوی خرید یا شارژ شروع کنید." }
   ,{ key: "wallet.chargePrompt", title: "Wallet charge amount prompt", fallback: "💳 مبلغ شارژ کیف پول را به تومان ارسال کنید.\nمثال: 200000" }
+  ,{ key: "wallet.overview", title: "Wallet overview", fallback: "👛 کیف پول شما\n\n💰 موجودی فعلی: {{balance}}\n\nبرای افزایش موجودی، روی دکمه شارژ کیف پول بزنید." }
+  ,{ key: "wallet.chargeButton", title: "Wallet charge button", fallback: "💳 شارژ کیف پول" }
   ,{ key: "wallet.invalidAmount", title: "Wallet invalid amount", fallback: "❌ مبلغ درست نیست.\nمثال: 200000" }
   ,{ key: "wallet.chargeInstruction", title: "Wallet charge card instruction", fallback: "💳 برای شارژ {{amount}} کارت‌به‌کارت کنید:\n\n{{cardText}}" }
   ,{ key: "discount.prompt", title: "Discount code prompt", fallback: "🎟️ کد تخفیف را ارسال کنید." }
@@ -42,8 +44,7 @@ export const BOT_TEXT_DEFINITIONS = [
   ,{ key: "content.select", title: "Select content", fallback: "👇 یکی را انتخاب کنید:" }
   ,{ key: "content.notFound", title: "Content not found", fallback: "❌ آیتم پیدا نشد." }
   ,{ key: "checkout.discountButton", title: "Checkout discount button", fallback: "🎟️ کد تخفیف دارم" }
-  ,{ key: "checkout.walletOffsetButton", title: "Checkout wallet offset button", fallback: "👛 کم کردن از کیف پول" }
-  ,{ key: "checkout.walletPayButton", title: "Checkout wallet pay button", fallback: "✅ پرداخت کامل با کیف پول" }
+  ,{ key: "checkout.walletOffsetButton", title: "Checkout wallet payment button", fallback: "👛 پرداخت با کیف پول" }
   ,{ key: "checkout.cardButton", title: "Checkout card button", fallback: "💳 کارت‌به‌کارت" }
   ,{ key: "checkout.summary", title: "Checkout summary", fallback: "🧾 خلاصه سفارش\n\n💵 مبلغ سرویس: {{amount}}\n🎟️ تخفیف: {{discount}}\n👛 پرداخت از کیف پول: {{wallet}}\n✅ مبلغ نهایی: {{due}}\n\n💰 موجودی کیف پول: {{balance}}" }
 ] as const;

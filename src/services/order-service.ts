@@ -3,7 +3,6 @@ import { prisma } from "../db.js";
 import { calculateDiscountAmount, payableAmount, walletOffsetForOrder } from "../domain/checkout.js";
 import { expirationFromNow, gbToBytes } from "../domain/plans.js";
 import { sanitizeUsername, withRandomSuffix } from "../domain/username.js";
-import { assertEnoughBalance } from "../domain/wallet.js";
 import { remnawaveClient } from "../remnawave/remnawave-client.js";
 import { getWalletBalance } from "./wallet-service.js";
 
@@ -92,47 +91,6 @@ export async function submitCardReceipt(orderId: string, telegramFileId: string)
 
     return { order, receipt };
   });
-}
-
-export async function payServiceOrderByWallet(orderId: string): Promise<OrderWithUserPlan | Order> {
-  const order = await prisma.order.findUnique({
-    where: { id: orderId },
-    include: { user: true, plan: { include: { category: true } }, targetService: true }
-  });
-
-  if (!order) {
-    throw new Error("Order peyda nashod.");
-  }
-
-  if (order.type === "SERVICE_PURCHASE" && !order.plan) {
-    throw new Error("Plan peyda nashod.");
-  }
-
-  if (order.type === "SERVICE_RENEWAL" && !order.targetService) {
-    throw new Error("Service tamdid peyda nashod.");
-  }
-
-  const balance = await getWalletBalance(order.userId);
-  const due = payableAmount(order.amountToman, order.discountAmountToman, 0);
-  assertEnoughBalance(balance, due);
-
-  await prisma.$transaction(async (tx) => {
-    await tx.walletTransaction.create({
-      data: {
-        userId: order.userId,
-        orderId: order.id,
-        type: "PURCHASE",
-        amountToman: -due,
-        description: order.type === "SERVICE_RENEWAL" ? "Tamdid service" : `Kharid service ${order.plan?.title ?? ""}`
-      }
-    });
-    await tx.order.update({
-      where: { id: order.id },
-      data: { status: "PAID", paymentMethod: "WALLET", walletAppliedToman: due, cardAmountToman: 0 }
-    });
-  });
-
-  return order.type === "SERVICE_RENEWAL" ? renewService(order.id) : provisionService(order.id);
 }
 
 export async function applyDiscountCode(orderId: string, code: string): Promise<Order> {

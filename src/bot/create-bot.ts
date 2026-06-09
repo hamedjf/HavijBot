@@ -55,7 +55,6 @@ import {
   handleCopyRialAmount,
   handleMyServices,
   handlePayCard,
-  handlePayWallet,
   handleApplyWallet,
   handleDiscountCode,
   handleDiscountStart,
@@ -70,7 +69,8 @@ import {
   handleSupport,
   handleUsernameMessage,
   handleWalletAmount,
-  handleWalletCharge
+  handleWalletCharge,
+  handleWalletOverview
 } from "./handlers/user-handlers.js";
 import { getText } from "../services/text-service.js";
 import { isAdmin, isChannelMember } from "./membership.js";
@@ -149,10 +149,6 @@ export function createBot() {
   bot.action(/^copy_rial:(.+)$/, async (ctx) => {
     await handleCopyRialAmount(ctx, ctx.match[1]);
   });
-  bot.action(/^pay_wallet:(.+)$/, async (ctx) => {
-    await ctx.answerCbQuery();
-    await handlePayWallet(ctx, ctx.match[1]);
-  });
   bot.action(/^apply_wallet:(.+)$/, async (ctx) => {
     await ctx.answerCbQuery();
     await handleApplyWallet(ctx, ctx.match[1]);
@@ -164,6 +160,10 @@ export function createBot() {
   bot.action("wallet_charge", async (ctx) => {
     await ctx.answerCbQuery();
     await handleWalletCharge(ctx);
+  });
+  bot.action("wallet", async (ctx) => {
+    await ctx.answerCbQuery();
+    await handleWalletOverview(ctx);
   });
   bot.action("my_services", async (ctx) => {
     await ctx.answerCbQuery();
@@ -403,7 +403,7 @@ async function handleMainKeyboardText(ctx: BotContext, text: string): Promise<bo
     [await getText("main.myServices"), async () => handleMyServices(ctx)],
     [await getText("main.tutorials"), async () => handleContent(ctx, "TRAINING")],
     [await getText("main.apps"), async () => handleContent(ctx, "SOFTWARE")],
-    [await getText("main.wallet"), async () => handleWalletCharge(ctx)],
+    [await getText("main.wallet"), async () => handleWalletOverview(ctx)],
     [await getText("main.referral"), async () => handleReferral(ctx)],
     [await getText("main.support"), async () => handleSupport(ctx)]
   ];

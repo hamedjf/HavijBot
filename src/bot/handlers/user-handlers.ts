@@ -1,4 +1,4 @@
-import { Markup } from "telegraf";
+﻿import { Markup } from "telegraf";
 import type { BotContext } from "../context.js";
 import { config } from "../../config.js";
 import { bytesToGb, formatDays, formatGb, formatToman } from "../../domain/format.js";
@@ -15,7 +15,6 @@ import {
   createWalletTopupOrder,
   finalizeWalletCoveredOrder,
   getOrderPayable,
-  payServiceOrderByWallet,
   submitCardReceipt
 } from "../../services/order-service.js";
 import { getCardToCardText } from "../../services/settings-service.js";
@@ -98,7 +97,7 @@ export async function handleUsernameMessage(ctx: BotContext, text: string) {
     return;
   }
   if (!ctx.session.planId) {
-    await ctx.reply("❌ پلن پیدا نشد. دوباره از منوی خرید شروع کنید.");
+    await ctx.reply("â‌Œ ظ¾ظ„ظ† ظ¾غŒط¯ط§ ظ†ط´ط¯. ط¯ظˆط¨ط§ط±ظ‡ ط§ط² ظ…ظ†ظˆغŒ ط®ط±غŒط¯ ط´ط±ظˆط¹ ع©ظ†غŒط¯.");
     ctx.session = {};
     return;
   }
@@ -126,22 +125,6 @@ export async function handlePayCard(ctx: BotContext, orderId: string) {
   await ctx.reply(await getText("payment.sendReceipt"));
 }
 
-export async function handlePayWallet(ctx: BotContext, orderId: string) {
-  if (!(await ensureAllowed(ctx))) return;
-
-  try {
-    const order = await payServiceOrderByWallet(orderId);
-    await notifyAdminsInstantPayment(ctx, order.id, "Pardakht kamel ba kife pool");
-    if (order.type === "SERVICE_RENEWAL") {
-      await sendRenewedService(ctx, order.id);
-    } else {
-      await sendProvisionedService(ctx, order.id);
-    }
-  } catch (error) {
-    await ctx.reply(error instanceof Error ? `❌ ${error.message}` : "❌ پرداخت با کیف پول ناموفق بود.");
-  }
-}
-
 export async function handleDiscountStart(ctx: BotContext, orderId: string) {
   if (!(await ensureAllowed(ctx))) return;
   ctx.session.flow = "discount_code";
@@ -162,7 +145,7 @@ export async function handleDiscountCode(ctx: BotContext, text: string) {
     await ctx.reply(await getText("discount.applied", { amount: formatToman(order.discountAmountToman) }));
     await sendCheckoutOptions(ctx, order.id);
   } catch (error) {
-    await ctx.reply(error instanceof Error ? `❌ ${error.message}` : "❌ کد تخفیف اعمال نشد.");
+    await ctx.reply(error instanceof Error ? `â‌Œ ${error.message}` : "â‌Œ ع©ط¯ طھط®ظپغŒظپ ط§ط¹ظ…ط§ظ„ ظ†ط´ط¯.");
   }
 }
 
@@ -171,7 +154,14 @@ export async function handleApplyWallet(ctx: BotContext, orderId: string) {
   try {
     const order = await applyWalletOffset(orderId);
     const due = order.cardAmountToman ?? 0;
-    await ctx.reply(`✅ مبلغ ${formatToman(order.walletAppliedToman)} از کیف پول استفاده می‌شود.${due > 0 ? `\nمبلغ باقی‌مانده: ${formatToman(due)}` : ""}`);
+    await ctx.reply(
+      [
+        `✅ مبلغ ${formatToman(order.walletAppliedToman)} از کیف پول برای این سفارش لحاظ شد.`,
+        due > 0
+          ? `💳 مبلغ باقی‌مانده برای کارت‌به‌کارت: ${formatToman(due)}\n\nاین مبلغ بعد از ارسال رسید و تایید ادمین از کیف پول کم می‌شود.`
+          : "✅ موجودی کیف پول برای پرداخت کامل کافی است."
+      ].join("\n")
+    );
     if (due === 0) {
       const paidOrder = await finalizeWalletCoveredOrder(order.id);
       await notifyAdminsInstantPayment(ctx, paidOrder.id, "Tasvie kamel ba kife pool/takhfif");
@@ -182,10 +172,23 @@ export async function handleApplyWallet(ctx: BotContext, orderId: string) {
       }
       return;
     }
-    await sendCheckoutOptions(ctx, order.id);
+    await handlePayCard(ctx, order.id);
   } catch (error) {
-    await ctx.reply(error instanceof Error ? `❌ ${error.message}` : "❌ کیف پول اعمال نشد.");
+    await ctx.reply(error instanceof Error ? `â‌Œ ${error.message}` : "â‌Œ ع©غŒظپ ظ¾ظˆظ„ ط§ط¹ظ…ط§ظ„ ظ†ط´ط¯.");
   }
+}
+
+export async function handleWalletOverview(ctx: BotContext) {
+  if (!(await ensureAllowed(ctx))) return;
+  const user = await upsertTelegramUser(ctx);
+  const balance = await getWalletBalance(user.id);
+  await ctx.reply(
+    await getText("wallet.overview", { balance: formatToman(balance) }),
+    Markup.inlineKeyboard([
+      [Markup.button.callback(await getText("wallet.chargeButton"), "wallet_charge")],
+      ...userNavKeyboard()
+    ])
+  );
 }
 
 export async function handleWalletCharge(ctx: BotContext) {
@@ -308,7 +311,7 @@ export async function handleServiceDetail(ctx: BotContext, serviceId: string) {
   } catch (error) {
     if (isMissingRemnawaveUserError(error)) {
       await prisma.purchasedService.delete({ where: { id: service.id } }).catch(() => null);
-      await ctx.reply("⚠️ این سرویس داخل پنل پیدا نشد و از لیست سرویس‌های شما حذف شد. لطفا برای بررسی بیشتر با پشتیبانی در ارتباط باشید.");
+      await ctx.reply("âڑ ï¸ڈ ط§غŒظ† ط³ط±ظˆغŒط³ ط¯ط§ط®ظ„ ظ¾ظ†ظ„ ظ¾غŒط¯ط§ ظ†ط´ط¯ ظˆ ط§ط² ظ„غŒط³طھ ط³ط±ظˆغŒط³â€Œظ‡ط§غŒ ط´ظ…ط§ ط­ط°ظپ ط´ط¯. ظ„ط·ظپط§ ط¨ط±ط§غŒ ط¨ط±ط±ط³غŒ ط¨غŒط´طھط± ط¨ط§ ظ¾ط´طھغŒط¨ط§ظ†غŒ ط¯ط± ط§ط±طھط¨ط§ط· ط¨ط§ط´غŒط¯.");
       await replyMainMenu(ctx);
       return;
     }
@@ -322,14 +325,14 @@ export async function handleServiceDetail(ctx: BotContext, serviceId: string) {
     { source: qr },
     {
       caption: [
-        `👤 نام کاربری: ${service.username}`,
-        `🔗 لینک: ${subscriptionUrl}`,
-        `📊 مصرف: ${usedGb} / ${totalGb} GB`,
-        `⏳ روز باقی‌مانده: ${daysLeft}`
+        `ًں‘¤ ظ†ط§ظ… ع©ط§ط±ط¨ط±غŒ: ${service.username}`,
+        `ًں”— ظ„غŒظ†ع©: ${subscriptionUrl}`,
+        `ًں“ٹ ظ…طµط±ظپ: ${usedGb} / ${totalGb} GB`,
+        `âڈ³ ط±ظˆط² ط¨ط§ظ‚غŒâ€Œظ…ط§ظ†ط¯ظ‡: ${daysLeft}`
       ].join("\n"),
       reply_markup: Markup.inlineKeyboard([
-        [Markup.button.callback("🔄 تمدید سرویس", `renew:${service.id}`)],
-        [Markup.button.callback("📋 دریافت دستی کانفیگ‌ها", `configs:${service.id}`)],
+        [Markup.button.callback("ًں”„ طھظ…ط¯غŒط¯ ط³ط±ظˆغŒط³", `renew:${service.id}`)],
+        [Markup.button.callback("ًں“‹ ط¯ط±غŒط§ظپطھ ط¯ط³طھغŒ ع©ط§ظ†ظپغŒع¯â€Œظ‡ط§", `configs:${service.id}`)],
         ...userNavKeyboard("my_services")
       ]).reply_markup
     }
@@ -431,7 +434,7 @@ export async function handleSupport(ctx: BotContext) {
 export async function sendProvisionedService(ctx: BotContext, orderId: string) {
   const service = await prisma.purchasedService.findUnique({ where: { orderId } });
   if (!service) {
-    await ctx.reply("⚠️ سرویس ساخته شد اما رکورد داخلی پیدا نشد. لطفا به پشتیبانی اطلاع دهید.");
+    await ctx.reply("âڑ ï¸ڈ ط³ط±ظˆغŒط³ ط³ط§ط®طھظ‡ ط´ط¯ ط§ظ…ط§ ط±ع©ظˆط±ط¯ ط¯ط§ط®ظ„غŒ ظ¾غŒط¯ط§ ظ†ط´ط¯. ظ„ط·ظپط§ ط¨ظ‡ ظ¾ط´طھغŒط¨ط§ظ†غŒ ط§ط·ظ„ط§ط¹ ط¯ظ‡غŒط¯.");
     return;
   }
 
@@ -439,9 +442,9 @@ export async function sendProvisionedService(ctx: BotContext, orderId: string) {
   await ctx.replyWithPhoto(
     { source: qr },
     {
-      caption: [`✅ سرویس شما آماده است.`, `👤 نام کاربری: ${service.username}`, `🔗 لینک ساب: ${service.subscriptionUrl}`].join("\n"),
+      caption: [`âœ… ط³ط±ظˆغŒط³ ط´ظ…ط§ ط¢ظ…ط§ط¯ظ‡ ط§ط³طھ.`, `ًں‘¤ ظ†ط§ظ… ع©ط§ط±ط¨ط±غŒ: ${service.username}`, `ًں”— ظ„غŒظ†ع© ط³ط§ط¨: ${service.subscriptionUrl}`].join("\n"),
       reply_markup: Markup.inlineKeyboard([
-        [Markup.button.callback("📋 دریافت دستی کانفیگ‌ها", `configs:${service.id}`)],
+        [Markup.button.callback("ًں“‹ ط¯ط±غŒط§ظپطھ ط¯ط³طھغŒ ع©ط§ظ†ظپغŒع¯â€Œظ‡ط§", `configs:${service.id}`)],
         ...userNavKeyboard()
       ]).reply_markup
     }
@@ -455,7 +458,7 @@ export async function sendRenewedService(ctx: BotContext, orderId: string) {
     include: { targetService: true }
   });
   if (!order?.targetService) {
-    await ctx.reply("⚠️ تمدید انجام شد اما سرویس داخلی پیدا نشد. لطفا به پشتیبانی اطلاع دهید.");
+    await ctx.reply("âڑ ï¸ڈ طھظ…ط¯غŒط¯ ط§ظ†ط¬ط§ظ… ط´ط¯ ط§ظ…ط§ ط³ط±ظˆغŒط³ ط¯ط§ط®ظ„غŒ ظ¾غŒط¯ط§ ظ†ط´ط¯. ظ„ط·ظپط§ ط¨ظ‡ ظ¾ط´طھغŒط¨ط§ظ†غŒ ط§ط·ظ„ط§ط¹ ط¯ظ‡غŒط¯.");
     return;
   }
 
@@ -466,14 +469,14 @@ export async function sendRenewedService(ctx: BotContext, orderId: string) {
     { source: qr },
     {
       caption: [
-        "✅ سرویس شما تمدید شد.",
-        `👤 نام کاربری: ${service.username}`,
-        `🔗 لینک: ${service.subscriptionUrl}`,
-        `📦 حجم جدید: ${formatGb(service.volumeGb)}`,
-        `⏳ روز باقی‌مانده: ${daysLeft}`
+        "âœ… ط³ط±ظˆغŒط³ ط´ظ…ط§ طھظ…ط¯غŒط¯ ط´ط¯.",
+        `ًں‘¤ ظ†ط§ظ… ع©ط§ط±ط¨ط±غŒ: ${service.username}`,
+        `ًں”— ظ„غŒظ†ع©: ${service.subscriptionUrl}`,
+        `ًں“¦ ط­ط¬ظ… ط¬ط¯غŒط¯: ${formatGb(service.volumeGb)}`,
+        `âڈ³ ط±ظˆط² ط¨ط§ظ‚غŒâ€Œظ…ط§ظ†ط¯ظ‡: ${daysLeft}`
       ].join("\n"),
       reply_markup: Markup.inlineKeyboard([
-        [Markup.button.callback("📋 دریافت دستی کانفیگ‌ها", `configs:${service.id}`)],
+        [Markup.button.callback("ًں“‹ ط¯ط±غŒط§ظپطھ ط¯ط³طھغŒ ع©ط§ظ†ظپغŒع¯â€Œظ‡ط§", `configs:${service.id}`)],
         ...userNavKeyboard()
       ]).reply_markup
     }
@@ -534,7 +537,7 @@ async function notifyAdminsInstantPayment(ctx: BotContext, orderId: string, reas
   });
   if (!order) return;
 
-  const message = [`✅ ${reason}`, buildAdminPaymentSummary(order)].join("\n\n");
+  const message = [`âœ… ${reason}`, buildAdminPaymentSummary(order)].join("\n\n");
   const results = await Promise.allSettled(config.ADMIN_IDS.map((adminId) => ctx.telegram.sendMessage(adminId, message)));
   const failedAdminIds = config.ADMIN_IDS.filter((_adminId, index) => results[index]?.status === "rejected");
   if (failedAdminIds.length > 0) {
@@ -579,8 +582,9 @@ function getCardCopyKeyboard(orderId: string) {
 }
 
 function extractCardNumber(cardText: string) {
-  const normalized = cardText.replace(/[۰-۹]/g, (digit) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(digit)))
-    .replace(/[٠-٩]/g, (digit) => String("٠١٢٣٤٥٦٧٨٩".indexOf(digit)));
+  const normalized = cardText
+    .replace(/[\u06F0-\u06F9]/g, (digit) => String(digit.charCodeAt(0) - 0x06f0))
+    .replace(/[\u0660-\u0669]/g, (digit) => String(digit.charCodeAt(0) - 0x0660));
   const match = normalized.replace(/[^\d]/g, "").match(/\d{16}/);
   return match?.[0] ?? null;
 }
@@ -589,21 +593,21 @@ async function sendSubscriptionConfigs(ctx: BotContext, usernameOrUuid: string, 
   try {
     const configs = await remnawaveClient.getSubscriptionConfigs(usernameOrUuid);
     if (configs.length === 0) {
-      await ctx.reply(`🔗 لینک ساب شما:\n${subscriptionUrl}`);
+      await ctx.reply(`ًں”— ظ„غŒظ†ع© ط³ط§ط¨ ط´ظ…ط§:\n${subscriptionUrl}`);
       return;
     }
 
     const body = [
-      `🔗 لینک ساب شما:\n${subscriptionUrl}`,
+      `ًں”— ظ„غŒظ†ع© ط³ط§ط¨ ط´ظ…ط§:\n${subscriptionUrl}`,
       "",
-      "📋 کانفیگ‌ها:",
+      "ًں“‹ ع©ط§ظ†ظپغŒع¯â€Œظ‡ط§:",
       configs.map((configLine) => `<code>${escapeHtml(configLine)}</code>`).join("\n\n")
     ].join("\n");
 
     await ctx.reply(body.slice(0, 3900), { parse_mode: "HTML" });
   } catch (error) {
     logger.warn({ err: error, usernameOrUuid }, "Subscription configs could not be fetched");
-    await ctx.reply(`🔗 لینک ساب شما:\n${subscriptionUrl}`);
+    await ctx.reply(`ًں”— ظ„غŒظ†ع© ط³ط§ط¨ ط´ظ…ط§:\n${subscriptionUrl}`);
   }
 }
 
@@ -636,7 +640,6 @@ async function sendCheckoutOptions(ctx: BotContext, orderId: string) {
     Markup.inlineKeyboard([
       [Markup.button.callback(await getText("checkout.discountButton"), `discount:${orderId}`)],
       [Markup.button.callback(await getText("checkout.walletOffsetButton"), `apply_wallet:${orderId}`)],
-      [Markup.button.callback(await getText("checkout.walletPayButton"), `pay_wallet:${orderId}`)],
       [Markup.button.callback(await getText("checkout.cardButton"), `pay_card:${orderId}`)],
       ...userNavKeyboard()
     ])

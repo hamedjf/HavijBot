@@ -81,6 +81,17 @@ export function createBot() {
 
   bot.start(handleStart);
 
+  bot.command("whoami", async (ctx) => {
+    await ctx.reply(
+      [
+        `telegramId=${ctx.from?.id ?? "unknown"}`,
+        `username=${ctx.from?.username ?? "none"}`,
+        `admin=${isAdmin(ctx.from?.id) ? "yes" : "no"}`,
+        `configuredAdmins=${config.ADMIN_IDS.join(",") || "none"}`
+      ].join("\n")
+    );
+  });
+
   bot.command("admin", handleAdmin);
   bot.command("debug_membership", async (ctx) => {
     if (!isAdmin(ctx.from?.id)) {

@@ -14,7 +14,16 @@ export async function isChannelMember(ctx: BotContext): Promise<boolean> {
   try {
     const channelId = normalizeChannelId(config.MAIN_CHANNEL_ID);
     const member = await ctx.telegram.getChatMember(channelId, ctx.from.id);
-    return ["creator", "administrator", "member"].includes(member.status);
+    logger.info(
+      {
+        mainChannelId: config.MAIN_CHANNEL_ID,
+        normalizedMainChannelId: channelId,
+        telegramId: ctx.from.id,
+        membershipStatus: member.status
+      },
+      "Channel membership checked"
+    );
+    return !["left", "kicked"].includes(member.status);
   } catch (error) {
     logger.warn(
       {
@@ -25,7 +34,7 @@ export async function isChannelMember(ctx: BotContext): Promise<boolean> {
       },
       "Channel membership check failed"
     );
-    return false;
+    return true;
   }
 }
 

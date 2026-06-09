@@ -1,5 +1,5 @@
 export function formatToman(value: number): string {
-  return `${new Intl.NumberFormat("en-US").format(value)} toman`;
+  return `${new Intl.NumberFormat("en-US").format(value)} تومان`;
 }
 
 export function formatGb(value: number): string {

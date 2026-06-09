@@ -44,12 +44,16 @@ export async function createWalletTopupOrder(userId: string, amountToman: number
   });
 }
 
-export async function createRenewalOrder(userId: string, serviceId: string, volumeGb: number, durationDays: number, priceToman: number) {
+export async function createRenewalOrder(userId: string, serviceId: string) {
   const service = await prisma.purchasedService.findFirst({
     where: { id: serviceId, userId }
   });
   if (!service) {
     throw new Error("Service baraye tamdid peyda nashod.");
+  }
+  const plan = await prisma.plan.findUnique({ where: { id: service.planId } });
+  if (!plan?.isEnabled) {
+    throw new Error("Plan feli service baraye tamdid faal nist.");
   }
 
   return prisma.order.create({
@@ -58,9 +62,10 @@ export async function createRenewalOrder(userId: string, serviceId: string, volu
       type: "SERVICE_RENEWAL",
       status: "DRAFT",
       targetServiceId: serviceId,
-      renewalVolumeGb: volumeGb,
-      renewalDurationDays: durationDays,
-      amountToman: priceToman
+      planId: plan.id,
+      renewalVolumeGb: plan.volumeGb,
+      renewalDurationDays: plan.durationDays,
+      amountToman: plan.priceToman
     }
   });
 }
@@ -99,6 +104,9 @@ export async function applyDiscountCode(orderId: string, code: string): Promise<
   if (!order) {
     throw new Error("Order peyda nashod.");
   }
+  if (order.discountCodeId) {
+    throw new Error("Baraye in order ghablan code takhfif sabt shode.");
+  }
 
   const discount = await prisma.discountCode.findUnique({ where: { code: normalizedCode } });
   if (!discount || !discount.isEnabled) {
@@ -109,6 +117,14 @@ export async function applyDiscountCode(orderId: string, code: string): Promise<
   }
   if (discount.maxUses !== null && discount.usedCount >= discount.maxUses) {
     throw new Error("Zarfiat code takhfif tamam shode.");
+  }
+  if (discount.oneUsePerUser) {
+    const existingUsage = await prisma.discountCodeUsage.findUnique({
+      where: { discountCodeId_userId: { discountCodeId: discount.id, userId: order.userId } }
+    });
+    if (existingUsage) {
+      throw new Error("In code takhfif ghablan baraye shoma estefade shode.");
+    }
   }
 
   const discountAmount = calculateDiscountAmount(order.amountToman, discount);
@@ -130,6 +146,15 @@ export async function applyDiscountCode(orderId: string, code: string): Promise<
       where: { id: discount.id },
       data: { usedCount: { increment: 1 } }
     });
+    if (discount.oneUsePerUser) {
+      await tx.discountCodeUsage.create({
+        data: {
+          discountCodeId: discount.id,
+          userId: order.userId,
+          orderId
+        }
+      });
+    }
     return updated;
   });
 }

@@ -1,4 +1,4 @@
-import { Telegraf, session } from "telegraf";
+﻿import { Telegraf, session } from "telegraf";
 import type { Message } from "telegraf/types";
 import { config } from "../config.js";
 import { logger } from "../logger.js";
@@ -61,7 +61,6 @@ import {
   handlePlan,
   handleReceiptPhoto,
   handleReferral,
-  handleRenewOption,
   handleRenewService,
   handleServiceConfigs,
   handleServiceDetail,
@@ -107,7 +106,7 @@ export function createBot() {
     );
 
     if (ctx.chat?.type === "private") {
-      await ctx.reply("در حال حاضر بربات در دسترس نیست");
+      await ctx.reply("⚠️ مشکلی پیش آمد. لطفا چند لحظه بعد دوباره تلاش کنید.");
     }
   });
 
@@ -180,10 +179,6 @@ export function createBot() {
   bot.action(/^renew:(.+)$/, async (ctx) => {
     await ctx.answerCbQuery();
     await handleRenewService(ctx, ctx.match[1]);
-  });
-  bot.action(/^renew_opt:(.+):(\d+)$/, async (ctx) => {
-    await ctx.answerCbQuery();
-    await handleRenewOption(ctx, ctx.match[1], Number(ctx.match[2]));
   });
   bot.action(/^content:(TRAINING|SOFTWARE)$/, async (ctx) => {
     await ctx.answerCbQuery();
@@ -334,7 +329,7 @@ export function createBot() {
       await handleAddContentFile(ctx, message.document.file_id, "DOCUMENT", message.caption);
       return;
     }
-    await ctx.reply("Lotfan screenshot resid ro be soorate photo befrest.");
+    await ctx.reply("📸 لطفا اسکرین‌شات رسید را به‌صورت عکس ارسال کنید.");
   });
 
   bot.on("text", async (ctx) => {

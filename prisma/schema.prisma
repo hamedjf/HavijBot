@@ -78,6 +78,7 @@ model TelegramUser {
   orders            Order[]
   services          PurchasedService[]
   walletTransactions WalletTransaction[]
+  discountUsages    DiscountCodeUsage[]
   referredBy        TelegramUser?       @relation("UserReferrals", fields: [referredByUserId], references: [id])
   referrals         TelegramUser[]      @relation("UserReferrals")
 }
@@ -146,12 +147,27 @@ model DiscountCode {
   percentOff      Int?
   amountOffToman  Int?
   maxUses         Int?
+  oneUsePerUser   Boolean  @default(false)
   usedCount       Int      @default(0)
   expiresAt       DateTime?
   isEnabled       Boolean  @default(true)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   orders          Order[]
+  usages          DiscountCodeUsage[]
+}
+
+model DiscountCodeUsage {
+  id              String       @id @default(uuid())
+  discountCodeId  String
+  userId          String
+  orderId         String?
+  createdAt       DateTime     @default(now())
+  discountCode    DiscountCode @relation(fields: [discountCodeId], references: [id])
+  user            TelegramUser @relation(fields: [userId], references: [id])
+
+  @@unique([discountCodeId, userId])
+  @@index([userId])
 }
 
 model PaymentReceipt {

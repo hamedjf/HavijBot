@@ -1,4 +1,4 @@
-import { Markup } from "telegraf";
+﻿import { Markup } from "telegraf";
 import type { BotContext } from "../context.js";
 import { prisma } from "../../db.js";
 import { formatDays, formatGb, formatToman } from "../../domain/format.js";
@@ -11,7 +11,7 @@ import { isAdmin } from "../membership.js";
 
 export async function handleAdmin(ctx: BotContext) {
   if (!ensureAdmin(ctx)) return;
-  await ctx.reply("Admin menu:", adminMenu());
+  await ctx.reply("⚙️ پنل مدیریت", adminMenu());
 }
 
 export async function handlePendingPayments(ctx: BotContext) {
@@ -24,27 +24,29 @@ export async function handlePendingPayments(ctx: BotContext) {
   });
 
   if (receipts.length === 0) {
-    await ctx.reply("Payment pending nadarim.");
+    await ctx.reply("✅ پرداخت در انتظاری وجود ندارد.");
     return;
   }
 
   for (const receipt of receipts) {
     await ctx.reply(
       [
-        `Receipt: ${receipt.id}`,
-        `Order: ${receipt.orderId}`,
-        `Type: ${receipt.order.type}`,
-        `Amount asli: ${formatToman(receipt.order.amountToman)}`,
-        receipt.order.discountAmountToman ? `Takhfif: ${formatToman(receipt.order.discountAmountToman)}` : undefined,
-        receipt.order.walletAppliedToman ? `Kife pool: ${formatToman(receipt.order.walletAppliedToman)}` : undefined,
-        receipt.order.cardAmountToman ? `Card-to-card: ${formatToman(receipt.order.cardAmountToman)}` : undefined,
-        `User: ${receipt.order.user.username ? `@${receipt.order.user.username}` : receipt.order.user.telegramId.toString()}`,
-        receipt.order.plan ? `Plan: ${receipt.order.plan.category.title} / ${receipt.order.plan.title}` : undefined
+        "🧾 پرداخت در انتظار بررسی",
+        "",
+        `شناسه رسید: ${receipt.id}`,
+        `شناسه سفارش: ${receipt.orderId}`,
+        `نوع سفارش: ${receipt.order.type}`,
+        `مبلغ اصلی: ${formatToman(receipt.order.amountToman)}`,
+        receipt.order.discountAmountToman ? `تخفیف: ${formatToman(receipt.order.discountAmountToman)}` : undefined,
+        receipt.order.walletAppliedToman ? `پرداخت از کیف پول: ${formatToman(receipt.order.walletAppliedToman)}` : undefined,
+        receipt.order.cardAmountToman ? `کارت‌به‌کارت: ${formatToman(receipt.order.cardAmountToman)}` : undefined,
+        `کاربر: ${receipt.order.user.username ? `@${receipt.order.user.username}` : receipt.order.user.telegramId.toString()}`,
+        receipt.order.plan ? `پلن: ${receipt.order.plan.category.title} / ${receipt.order.plan.title}` : undefined
       ]
         .filter(Boolean)
         .join("\n"),
       Markup.inlineKeyboard([
-        [Markup.button.callback("Taeed", `admin:approve:${receipt.id}`), Markup.button.callback("Rad", `admin:reject:${receipt.id}`)]
+        [Markup.button.callback("✅ تایید", `admin:approve:${receipt.id}`), Markup.button.callback("❌ رد", `admin:reject:${receipt.id}`)]
       ])
     );
   }
@@ -53,7 +55,7 @@ export async function handlePendingPayments(ctx: BotContext) {
 export async function startBroadcast(ctx: BotContext) {
   if (!ensureAdmin(ctx)) return;
   ctx.session = { flow: "admin_broadcast" };
-  await ctx.reply("Matne PM hamegani ro befrest. Bot be hame user haye sabt-shode mifreste.");
+  await ctx.reply("📣 متن پیام همگانی را ارسال کنید.\n\nاین پیام برای همه کاربران ثبت‌شده ارسال می‌شود.");
 }
 
 export async function handleBroadcastText(ctx: BotContext, text: string) {
@@ -79,7 +81,7 @@ export async function handleBroadcastText(ctx: BotContext, text: string) {
   }
 
   ctx.session = {};
-  await ctx.reply(`Broadcast tamam shod.\nSent: ${sent}\nFailed/blocked: ${failed}`);
+  await ctx.reply(`✅ ارسال همگانی تمام شد.\n\nارسال موفق: ${sent}\nناموفق/بلاک‌شده: ${failed}`);
   await handleAdmin(ctx);
 }
 
@@ -87,10 +89,10 @@ export async function handleCardText(ctx: BotContext) {
   if (!ensureAdmin(ctx)) return;
   const cardText = await getCardToCardText();
   await ctx.reply(
-    ["Card-to-card text/current:", "", cardText].join("\n"),
+    ["💳 متن فعلی کارت‌به‌کارت:", "", cardText].join("\n"),
     Markup.inlineKeyboard([
-      [Markup.button.callback("Edit card text", "admin:card_text_edit")],
-      [Markup.button.callback("Back", "admin")]
+      [Markup.button.callback("✏️ ویرایش متن کارت", "admin:card_text_edit")],
+      [Markup.button.callback("⬅️ بازگشت", "admin")]
     ])
   );
 }
@@ -98,14 +100,14 @@ export async function handleCardText(ctx: BotContext) {
 export async function startEditCardText(ctx: BotContext) {
   if (!ensureAdmin(ctx)) return;
   ctx.session = { flow: "admin_card_text" };
-  await ctx.reply("Matne jadid shomare cart ro befrest.\nMesal:\n6037991234567890\nBe name Hamed");
+  await ctx.reply("💳 متن جدید کارت‌به‌کارت را ارسال کنید.\n\nمثال:\n6037991234567890\nبه نام هویج‌نت");
 }
 
 export async function handleEditCardText(ctx: BotContext, text: string) {
   if (!ensureAdmin(ctx)) return;
   await setCardToCardText(text);
   ctx.session = {};
-  await ctx.reply("Card-to-card text update shod.");
+  await ctx.reply("✅ متن کارت‌به‌کارت به‌روزرسانی شد.");
   await handleCardText(ctx);
 }
 
@@ -117,20 +119,20 @@ export async function handleCategories(ctx: BotContext) {
   });
 
   if (categories.length === 0) {
-    await ctx.reply("Category nadari. Az Add category estefade kon.", Markup.inlineKeyboard([[Markup.button.callback("Add category", "admin:add_category")]]));
+    await ctx.reply("هنوز دسته‌بندی ثبت نشده است.", Markup.inlineKeyboard([[Markup.button.callback("➕ افزودن دسته‌بندی", "admin:add_category")]]));
     return;
   }
 
   await ctx.reply(
-    "Category ha:",
+    "🗂 دسته‌بندی‌ها:",
     Markup.inlineKeyboard([
       ...categories.map((category) => [
         Markup.button.callback(
-          `${category.isEnabled ? "ON" : "OFF"} ${category.title} (${category.slug}) - ${category._count.plans} plan`,
+          `${category.isEnabled ? "✅" : "⛔"} ${category.title} (${category.slug}) - ${category._count.plans} پلن`,
           `admin:category:${category.id}`
         )
       ]),
-      [Markup.button.callback("Add category", "admin:add_category")]
+      [Markup.button.callback("➕ افزودن دسته‌بندی", "admin:add_category")]
     ])
   );
 }
@@ -142,22 +144,22 @@ export async function handleCategoryDetail(ctx: BotContext, categoryId: string) 
     include: { _count: { select: { plans: true } } }
   });
   if (!category) {
-    await ctx.reply("Category peyda nashod.");
+    await ctx.reply("❌ دسته‌بندی پیدا نشد.");
     return;
   }
 
   await ctx.reply(
     [
-      `Title: ${category.title}`,
-        `Slug: ${category.slug}`,
-      `Squads: ${category.remnawaveSquadUuids.length > 0 ? category.remnawaveSquadUuids.join(", ") : category.remnawaveSquadUuid}`,
-      `Status: ${category.isEnabled ? "enabled" : "disabled"}`,
-      `Plans: ${category._count.plans}`
+      `عنوان: ${category.title}`,
+      `اسلاگ: ${category.slug}`,
+      `Squad ها: ${category.remnawaveSquadUuids.length > 0 ? category.remnawaveSquadUuids.join(", ") : category.remnawaveSquadUuid}`,
+      `وضعیت: ${category.isEnabled ? "فعال" : "غیرفعال"}`,
+      `تعداد پلن‌ها: ${category._count.plans}`
     ].join("\n"),
     Markup.inlineKeyboard([
-      [Markup.button.callback(category.isEnabled ? "Disable" : "Enable", `admin:category_toggle:${category.id}`)],
-      [Markup.button.callback("Remove category", `admin:category_delete:${category.id}`)],
-      [Markup.button.callback("Back", "admin:categories")]
+      [Markup.button.callback(category.isEnabled ? "⛔ غیرفعال کردن" : "✅ فعال کردن", `admin:category_toggle:${category.id}`)],
+      [Markup.button.callback("🗑 حذف دسته‌بندی", `admin:category_delete:${category.id}`)],
+      [Markup.button.callback("⬅️ بازگشت", "admin:categories")]
     ])
   );
 }
@@ -166,11 +168,11 @@ export async function handleToggleCategory(ctx: BotContext, categoryId: string) 
   if (!ensureAdmin(ctx)) return;
   const category = await prisma.planCategory.findUnique({ where: { id: categoryId } });
   if (!category) {
-    await ctx.reply("Category peyda nashod.");
+    await ctx.reply("❌ دسته‌بندی پیدا نشد.");
     return;
   }
   await prisma.planCategory.update({ where: { id: categoryId }, data: { isEnabled: !category.isEnabled } });
-  await ctx.reply("Category update shod.");
+  await ctx.reply("✅ دسته‌بندی به‌روزرسانی شد.");
   await handleCategories(ctx);
 }
 
@@ -178,11 +180,11 @@ export async function handleDeleteCategory(ctx: BotContext, categoryId: string) 
   if (!ensureAdmin(ctx)) return;
   const planCount = await prisma.plan.count({ where: { categoryId } });
   if (planCount > 0) {
-    await ctx.reply("In category plan dare. Aval plan ha ro remove/disable kon.");
+    await ctx.reply("⚠️ این دسته‌بندی پلن دارد. ابتدا پلن‌های آن را حذف یا غیرفعال کنید.");
     return;
   }
   await prisma.planCategory.delete({ where: { id: categoryId } });
-  await ctx.reply("Category remove shod.");
+  await ctx.reply("✅ دسته‌بندی حذف شد.");
   await handleCategories(ctx);
 }
 
@@ -194,20 +196,20 @@ export async function handlePlans(ctx: BotContext) {
   });
 
   if (plans.length === 0) {
-    await ctx.reply("Plan nadari. Az Add plan estefade kon.", Markup.inlineKeyboard([[Markup.button.callback("Add plan", "admin:add_plan")]]));
+    await ctx.reply("هنوز پلنی ثبت نشده است.", Markup.inlineKeyboard([[Markup.button.callback("➕ افزودن پلن", "admin:add_plan")]]));
     return;
   }
 
   await ctx.reply(
-    "Plan ha:",
+    "📦 پلن‌ها:",
     Markup.inlineKeyboard([
       ...plans.map((plan) => [
         Markup.button.callback(
-          `${plan.isEnabled ? "ON" : "OFF"} ${plan.category.title} / ${plan.title} / ${formatGb(plan.volumeGb)} / ${formatToman(plan.priceToman)}`,
+          `${plan.isEnabled ? "✅" : "⛔"} ${plan.category.title} / ${plan.title} / ${formatGb(plan.volumeGb)} / ${formatToman(plan.priceToman)}`,
           `admin:plan:${plan.id}`
         )
       ]),
-      [Markup.button.callback("Add plan", "admin:add_plan")]
+      [Markup.button.callback("➕ افزودن پلن", "admin:add_plan")]
     ])
   );
 }
@@ -217,20 +219,20 @@ export async function handleDiscounts(ctx: BotContext) {
   const discounts = await prisma.discountCode.findMany({ orderBy: { createdAt: "desc" } });
 
   if (discounts.length === 0) {
-    await ctx.reply("Discount code nadari.", Markup.inlineKeyboard([[Markup.button.callback("Add discount", "admin:add_discount")]]));
+    await ctx.reply("هنوز کد تخفیفی ثبت نشده است.", Markup.inlineKeyboard([[Markup.button.callback("🎟 افزودن کد تخفیف", "admin:add_discount")]]));
     return;
   }
 
   await ctx.reply(
-    "Discount code ha:",
+    "🎟 کدهای تخفیف:",
     Markup.inlineKeyboard([
       ...discounts.map((discount) => [
         Markup.button.callback(
-          `${discount.isEnabled ? "ON" : "OFF"} ${discount.code} - ${discount.percentOff ? `${discount.percentOff}%` : formatToman(discount.amountOffToman ?? 0)}`,
+          `${discount.isEnabled ? "✅" : "⛔"} ${discount.code} - ${discount.percentOff ? `${discount.percentOff}%` : formatToman(discount.amountOffToman ?? 0)}`,
           `admin:discount:${discount.id}`
         )
       ]),
-      [Markup.button.callback("Add discount", "admin:add_discount")]
+      [Markup.button.callback("🎟 افزودن کد تخفیف", "admin:add_discount")]
     ])
   );
 }
@@ -238,7 +240,7 @@ export async function handleDiscounts(ctx: BotContext) {
 export async function handleTexts(ctx: BotContext) {
   if (!ensureAdmin(ctx)) return;
   await ctx.reply(
-    "Text haye user-facing:",
+    "✏️ متن‌های قابل ویرایش ربات:",
     Markup.inlineKeyboard(TEXT_DEFINITIONS.map((definition) => [Markup.button.callback(definition.title, `admin:text:${definition.key}`)]))
   );
 }
@@ -247,24 +249,24 @@ export async function handleTextDetail(ctx: BotContext, key: string) {
   if (!ensureAdmin(ctx)) return;
   const definition = getTextDefinition(key);
   if (!definition) {
-    await ctx.reply("Text key peyda nashod.");
+    await ctx.reply("❌ کلید متن پیدا نشد.");
     return;
   }
   const custom = await prisma.botText.findUnique({ where: { key } });
   await ctx.reply(
     [
-      `Key: ${definition.key}`,
-      `Title: ${definition.title}`,
+      `کلید: ${definition.key}`,
+      `عنوان: ${definition.title}`,
       "",
-      "Current:",
+      "متن فعلی:",
       custom?.value ?? definition.fallback,
       "",
-      custom ? "Mode: custom" : "Mode: default"
+      custom ? "حالت: سفارشی" : "حالت: پیش‌فرض"
     ].join("\n"),
     Markup.inlineKeyboard([
-      [Markup.button.callback("Edit", `admin:text_edit:${definition.key}`)],
-      [Markup.button.callback("Reset default", `admin:text_reset:${definition.key}`)],
-      [Markup.button.callback("Back", "admin:texts")]
+      [Markup.button.callback("✏️ ویرایش", `admin:text_edit:${definition.key}`)],
+      [Markup.button.callback("↩️ بازگشت به پیش‌فرض", `admin:text_reset:${definition.key}`)],
+      [Markup.button.callback("⬅️ بازگشت", "admin:texts")]
     ])
   );
 }
@@ -273,35 +275,35 @@ export async function startEditText(ctx: BotContext, key: string) {
   if (!ensureAdmin(ctx)) return;
   const definition = getTextDefinition(key);
   if (!definition) {
-    await ctx.reply("Text key peyda nashod.");
+    await ctx.reply("❌ کلید متن پیدا نشد.");
     return;
   }
   ctx.session = { flow: "admin_text_value", adminTextKey: key };
-  await ctx.reply(`Matn jadid ro baraye "${definition.title}" befrest.\nBaraye line jadid az Enter estefade kon.`);
+  await ctx.reply(`✏️ متن جدید را برای «${definition.title}» ارسال کنید.\nبرای خط جدید از Enter استفاده کنید.`);
 }
 
 export async function handleEditTextValue(ctx: BotContext, value: string) {
   if (!ensureAdmin(ctx)) return;
   const key = ctx.session.adminTextKey;
   if (!key || !getTextDefinition(key)) {
-    await ctx.reply("Text key peyda nashod. Dobare az Texts shoroo kon.");
+    await ctx.reply("❌ کلید متن پیدا نشد. لطفا دوباره از بخش متن‌ها شروع کنید.");
     ctx.session = {};
     return;
   }
   await setText(key, value);
   ctx.session = {};
-  await ctx.reply("Text update shod.");
+  await ctx.reply("✅ متن به‌روزرسانی شد.");
   await handleTextDetail(ctx, key);
 }
 
 export async function handleResetText(ctx: BotContext, key: string) {
   if (!ensureAdmin(ctx)) return;
   if (!getTextDefinition(key)) {
-    await ctx.reply("Text key peyda nashod.");
+    await ctx.reply("❌ کلید متن پیدا نشد.");
     return;
   }
   await resetText(key);
-  await ctx.reply("Text reset shod.");
+  await ctx.reply("✅ متن به حالت پیش‌فرض برگشت.");
   await handleTextDetail(ctx, key);
 }
 
@@ -309,23 +311,24 @@ export async function handleDiscountDetail(ctx: BotContext, discountId: string) 
   if (!ensureAdmin(ctx)) return;
   const discount = await prisma.discountCode.findUnique({ where: { id: discountId } });
   if (!discount) {
-    await ctx.reply("Discount peyda nashod.");
+    await ctx.reply("❌ کد تخفیف پیدا نشد.");
     return;
   }
 
   await ctx.reply(
     [
-      `Code: ${discount.code}`,
-      `Percent: ${discount.percentOff ?? "-"}`,
-      `Amount: ${discount.amountOffToman ? formatToman(discount.amountOffToman) : "-"}`,
-      `Uses: ${discount.usedCount}${discount.maxUses ? ` / ${discount.maxUses}` : ""}`,
-      `Expires: ${discount.expiresAt?.toISOString().slice(0, 10) ?? "-"}`,
-      `Status: ${discount.isEnabled ? "enabled" : "disabled"}`
+      `کد: ${discount.code}`,
+      `درصد تخفیف: ${discount.percentOff ?? "-"}`,
+      `مبلغ تخفیف: ${discount.amountOffToman ? formatToman(discount.amountOffToman) : "-"}`,
+      `تعداد استفاده: ${discount.usedCount}${discount.maxUses ? ` / ${discount.maxUses}` : ""}`,
+      `انقضا: ${discount.expiresAt?.toISOString().slice(0, 10) ?? "-"}`,
+      `هر کاربر یکبار: ${discount.oneUsePerUser ? "بله" : "خیر"}`,
+      `وضعیت: ${discount.isEnabled ? "فعال" : "غیرفعال"}`
     ].join("\n"),
     Markup.inlineKeyboard([
-      [Markup.button.callback(discount.isEnabled ? "Disable" : "Enable", `admin:discount_toggle:${discount.id}`)],
-      [Markup.button.callback("Remove discount", `admin:discount_delete:${discount.id}`)],
-      [Markup.button.callback("Back", "admin:discounts")]
+      [Markup.button.callback(discount.isEnabled ? "⛔ غیرفعال کردن" : "✅ فعال کردن", `admin:discount_toggle:${discount.id}`)],
+      [Markup.button.callback("🗑 حذف کد تخفیف", `admin:discount_delete:${discount.id}`)],
+      [Markup.button.callback("⬅️ بازگشت", "admin:discounts")]
     ])
   );
 }
@@ -334,11 +337,11 @@ export async function handleToggleDiscount(ctx: BotContext, discountId: string) 
   if (!ensureAdmin(ctx)) return;
   const discount = await prisma.discountCode.findUnique({ where: { id: discountId } });
   if (!discount) {
-    await ctx.reply("Discount peyda nashod.");
+    await ctx.reply("❌ کد تخفیف پیدا نشد.");
     return;
   }
   await prisma.discountCode.update({ where: { id: discountId }, data: { isEnabled: !discount.isEnabled } });
-  await ctx.reply("Discount update shod.");
+  await ctx.reply("✅ کد تخفیف به‌روزرسانی شد.");
   await handleDiscounts(ctx);
 }
 
@@ -347,10 +350,10 @@ export async function handleDeleteDiscount(ctx: BotContext, discountId: string) 
   const orderCount = await prisma.order.count({ where: { discountCodeId: discountId } });
   if (orderCount > 0) {
     await prisma.discountCode.update({ where: { id: discountId }, data: { isEnabled: false } });
-    await ctx.reply("In discount order dare, delete nashod; disable shod.");
+    await ctx.reply("⚠️ این کد تخفیف در سفارش‌ها استفاده شده؛ حذف نشد و فقط غیرفعال شد.");
   } else {
     await prisma.discountCode.delete({ where: { id: discountId } });
-    await ctx.reply("Discount remove shod.");
+    await ctx.reply("✅ کد تخفیف حذف شد.");
   }
   await handleDiscounts(ctx);
 }
@@ -359,24 +362,24 @@ export async function handlePlanDetail(ctx: BotContext, planId: string) {
   if (!ensureAdmin(ctx)) return;
   const plan = await prisma.plan.findUnique({ where: { id: planId }, include: { category: true } });
   if (!plan) {
-    await ctx.reply("Plan peyda nashod.");
+    await ctx.reply("❌ پلن پیدا نشد.");
     return;
   }
 
   await ctx.reply(
     [
-      `Category: ${plan.category.title}`,
-      `Title: ${plan.title}`,
-      `Volume: ${formatGb(plan.volumeGb)}`,
-      `Duration: ${formatDays(plan.durationDays)}`,
-      `Price: ${formatToman(plan.priceToman)}`,
-      `Squads: ${plan.remnawaveSquadUuids.length > 0 ? plan.remnawaveSquadUuids.join(", ") : "category default"}`,
-      `Status: ${plan.isEnabled ? "enabled" : "disabled"}`
+      `دسته‌بندی: ${plan.category.title}`,
+      `عنوان: ${plan.title}`,
+      `حجم: ${formatGb(plan.volumeGb)}`,
+      `مدت: ${formatDays(plan.durationDays)}`,
+      `قیمت: ${formatToman(plan.priceToman)}`,
+      `Squad ها: ${plan.remnawaveSquadUuids.length > 0 ? plan.remnawaveSquadUuids.join(", ") : "پیش‌فرض دسته‌بندی"}`,
+      `وضعیت: ${plan.isEnabled ? "فعال" : "غیرفعال"}`
     ].join("\n"),
     Markup.inlineKeyboard([
-      [Markup.button.callback(plan.isEnabled ? "Disable" : "Enable", `admin:plan_toggle:${plan.id}`)],
-      [Markup.button.callback("Remove plan", `admin:plan_delete:${plan.id}`)],
-      [Markup.button.callback("Back", "admin:plans")]
+      [Markup.button.callback(plan.isEnabled ? "⛔ غیرفعال کردن" : "✅ فعال کردن", `admin:plan_toggle:${plan.id}`)],
+      [Markup.button.callback("🗑 حذف پلن", `admin:plan_delete:${plan.id}`)],
+      [Markup.button.callback("⬅️ بازگشت", "admin:plans")]
     ])
   );
 }
@@ -385,11 +388,11 @@ export async function handleTogglePlan(ctx: BotContext, planId: string) {
   if (!ensureAdmin(ctx)) return;
   const plan = await prisma.plan.findUnique({ where: { id: planId } });
   if (!plan) {
-    await ctx.reply("Plan peyda nashod.");
+    await ctx.reply("❌ پلن پیدا نشد.");
     return;
   }
   await prisma.plan.update({ where: { id: planId }, data: { isEnabled: !plan.isEnabled } });
-  await ctx.reply("Plan update shod.");
+  await ctx.reply("✅ پلن به‌روزرسانی شد.");
   await handlePlans(ctx);
 }
 
@@ -398,10 +401,10 @@ export async function handleDeletePlan(ctx: BotContext, planId: string) {
   const orderCount = await prisma.order.count({ where: { planId } });
   if (orderCount > 0) {
     await prisma.plan.update({ where: { id: planId }, data: { isEnabled: false } });
-    await ctx.reply("In plan order dare, delete nashod; disable shod.");
+    await ctx.reply("⚠️ این پلن سفارش دارد؛ حذف نشد و فقط غیرفعال شد.");
   } else {
     await prisma.plan.delete({ where: { id: planId } });
-    await ctx.reply("Plan remove shod.");
+    await ctx.reply("✅ پلن حذف شد.");
   }
   await handlePlans(ctx);
 }
@@ -410,7 +413,7 @@ export async function handleApprove(ctx: BotContext, receiptId: string) {
   if (!ensureAdmin(ctx)) return;
   try {
     const result = await approvePayment(receiptId, ctx.from!.id);
-    await ctx.reply("Payment taeed shod.");
+    await ctx.reply("✅ پرداخت تایید شد.");
 
     const order = await prisma.order.findUnique({
       where: { id: result.id },
@@ -420,12 +423,12 @@ export async function handleApprove(ctx: BotContext, receiptId: string) {
     if (!order) return;
 
     if (order.type === "WALLET_TOPUP") {
-      await ctx.telegram.sendMessage(Number(order.user.telegramId), "Charge kife pool taeed shod.");
+      await ctx.telegram.sendMessage(Number(order.user.telegramId), "✅ شارژ کیف پول شما تایید شد.");
     } else if (order.service) {
-      await ctx.telegram.sendMessage(Number(order.user.telegramId), "Pardakht taeed shod. Service shoma amade ast.");
+      await ctx.telegram.sendMessage(Number(order.user.telegramId), "✅ پرداخت شما تایید شد.\nسرویس شما آماده است.");
       await sendServiceToUser(ctx, Number(order.user.telegramId), order.service.id);
     } else if (order.type === "SERVICE_RENEWAL" && order.targetService) {
-      await ctx.telegram.sendMessage(Number(order.user.telegramId), "Pardakht taeed shod. Service shoma tamdid shod.");
+      await ctx.telegram.sendMessage(Number(order.user.telegramId), "✅ پرداخت شما تایید شد.\nسرویس شما تمدید شد.");
       await sendRenewedServiceToUser(ctx, Number(order.user.telegramId), order.targetService.id);
     }
   } catch (error) {
@@ -437,9 +440,9 @@ export async function handleApprove(ctx: BotContext, receiptId: string) {
     const failureReason = receipt?.order.failureReason;
     await ctx.reply(
       [
-        "Taeed payment namovafagh bood.",
-        failureReason ? `Reason: ${failureReason}` : error instanceof Error ? `Reason: ${error.message}` : undefined,
-        "Payment receipt approve shode bashe momkene order failed shode bashe; log Render ro check kon."
+        "❌ تایید پرداخت ناموفق بود.",
+        failureReason ? `دلیل: ${failureReason}` : error instanceof Error ? `دلیل: ${error.message}` : undefined,
+        "اگر رسید تایید شده اما سفارش failed شده، لاگ Render را بررسی کنید."
       ]
         .filter(Boolean)
         .join("\n")
@@ -450,29 +453,29 @@ export async function handleApprove(ctx: BotContext, receiptId: string) {
 export async function handleReject(ctx: BotContext, receiptId: string) {
   if (!ensureAdmin(ctx)) return;
   const receipt = await rejectPayment(receiptId, ctx.from!.id);
-  await ctx.reply("Payment rad shod.");
+  await ctx.reply("❌ پرداخت رد شد.");
   const order = await prisma.order.findUnique({ where: { id: receipt.orderId }, include: { user: true } });
   if (order) {
-    await ctx.telegram.sendMessage(Number(order.user.telegramId), "Tarakonesh eshtebah ast.");
+    await ctx.telegram.sendMessage(Number(order.user.telegramId), "❌ تراکنش شما تایید نشد.\nدر صورت نیاز، با پشتیبانی در ارتباط باشید.");
   }
 }
 
 export async function startAddCategory(ctx: BotContext) {
   if (!ensureAdmin(ctx)) return;
   ctx.session = { flow: "admin_category_title" };
-  await ctx.reply("Esme category ro befrest. Mesal: VIP");
+  await ctx.reply("🗂 نام دسته‌بندی را ارسال کنید.\nمثال: VIP");
 }
 
 export async function handleAddCategoryTitle(ctx: BotContext, text: string) {
   if (!ensureAdmin(ctx)) return;
   const title = text.trim();
   if (!title) {
-    await ctx.reply("Title khali nabashe.");
+    await ctx.reply("❌ عنوان نباید خالی باشد.");
     return;
   }
   ctx.session.adminCategoryTitle = title;
   ctx.session.flow = "admin_category_squad";
-  await ctx.reply("Remnawave squad UUID ro befrest.");
+  await ctx.reply("شناسه Squad در Remnawave را ارسال کنید.");
 }
 
 export async function handleAddCategorySquad(ctx: BotContext, text: string) {
@@ -480,7 +483,7 @@ export async function handleAddCategorySquad(ctx: BotContext, text: string) {
   const title = ctx.session.adminCategoryTitle;
   const remnawaveSquadUuid = text.trim();
   if (!title || !remnawaveSquadUuid) {
-    await ctx.reply("Data category kamel nist. Dobare Add category ro bezan.");
+    await ctx.reply("❌ اطلاعات دسته‌بندی کامل نیست. دوباره از افزودن دسته‌بندی شروع کنید.");
     ctx.session = {};
     return;
   }
@@ -491,7 +494,7 @@ export async function handleAddCategorySquad(ctx: BotContext, text: string) {
     create: { title, slug, remnawaveSquadUuid: parseSquadUuids(remnawaveSquadUuid)[0] ?? remnawaveSquadUuid, remnawaveSquadUuids: parseSquadUuids(remnawaveSquadUuid) }
   });
   ctx.session = {};
-  await ctx.reply(`Category sabt shod: ${title}`);
+  await ctx.reply(`✅ دسته‌بندی ثبت شد: ${title}`);
   await handleCategories(ctx);
 }
 
@@ -499,12 +502,12 @@ export async function startAddPlan(ctx: BotContext) {
   if (!ensureAdmin(ctx)) return;
   const categories = await prisma.planCategory.findMany({ where: { isEnabled: true }, orderBy: { title: "asc" } });
   if (categories.length === 0) {
-    await ctx.reply("Aval yek category besaz.");
+    await ctx.reply("ابتدا یک دسته‌بندی بسازید.");
     return;
   }
   ctx.session = {};
   await ctx.reply(
-    "Category plan ro entekhab kon:",
+    "🗂 دسته‌بندی پلن را انتخاب کنید:",
     Markup.inlineKeyboard(categories.map((category) => [Markup.button.callback(category.title, `admin:plan_category:${category.id}`)]))
   );
 }
@@ -513,36 +516,51 @@ export async function handlePlanCategorySelected(ctx: BotContext, categoryId: st
   if (!ensureAdmin(ctx)) return;
   const category = await prisma.planCategory.findUnique({ where: { id: categoryId } });
   if (!category) {
-    await ctx.reply("Category peyda nashod.");
+    await ctx.reply("❌ دسته‌بندی پیدا نشد.");
     return;
   }
   ctx.session = { flow: "admin_plan_title", adminPlanCategoryId: categoryId };
-  await ctx.reply(`Category: ${category.title}\nEsme plan ro befrest. Mesal: VIP 20GB 1M`);
+  await ctx.reply(`دسته‌بندی: ${category.title}\nنام پلن را ارسال کنید.\nمثال: VIP 20GB 1M`);
 }
 
 export async function startAddDiscount(ctx: BotContext) {
   if (!ensureAdmin(ctx)) return;
   ctx.session.flow = "admin_discount";
-  await ctx.reply("Format discount ro befrest:\nCODE | percent_off | amount_off_toman | max_uses | expire_yyyy-mm-dd\nMesal: OFF20 | 20 | 0 | 100 | 2026-12-31");
+  await ctx.reply(
+    [
+      "🎟 کد تخفیف را با این فرمت ارسال کنید:",
+      "",
+      "CODE | percent_off | amount_off_toman | max_uses | expire_yyyy-mm-dd | one_use_per_user",
+      "",
+      "مثال:",
+      "OFF20 | 20 | 0 | 100 | 2026-12-31 | yes",
+      "",
+      "برای بدون محدودیت زمانی، بخش تاریخ را خالی بگذارید.",
+      "برای استفاده چندباره توسط هر کاربر، مقدار آخر را no بگذارید."
+    ].join("\n")
+  );
 }
 
 export async function handleAddDiscountText(ctx: BotContext, text: string) {
   if (!ensureAdmin(ctx)) return;
-  const [codeRaw, percentRaw, amountRaw, maxUsesRaw, expiresRaw] = splitParts(text, 5);
+  const [codeRaw, percentRaw, amountRaw, maxUsesRaw, expiresRaw, oneUseRaw] = splitParts(text, 6);
   const code = codeRaw?.toUpperCase();
   const percentOff = Number(percentRaw ?? 0);
   const amountOffToman = Number(amountRaw ?? 0);
   const maxUses = maxUsesRaw ? Number(maxUsesRaw) : undefined;
   const expiresAt = expiresRaw ? new Date(`${expiresRaw}T23:59:59.000Z`) : undefined;
+  const oneUsePerUser = parseBooleanFlag(oneUseRaw);
 
   if (
     !code ||
     (!Number.isSafeInteger(percentOff) && !Number.isSafeInteger(amountOffToman)) ||
     (percentOff <= 0 && amountOffToman <= 0) ||
     percentOff > 100 ||
-    (maxUses !== undefined && !Number.isSafeInteger(maxUses))
+    (maxUses !== undefined && !Number.isSafeInteger(maxUses)) ||
+    (expiresRaw && Number.isNaN(expiresAt?.getTime())) ||
+    oneUsePerUser === null
   ) {
-    await ctx.reply("Format discount dorost nist.");
+    await ctx.reply("❌ فرمت کد تخفیف درست نیست.");
     return;
   }
 
@@ -553,6 +571,7 @@ export async function handleAddDiscountText(ctx: BotContext, text: string) {
       amountOffToman: amountOffToman > 0 ? amountOffToman : null,
       maxUses,
       expiresAt,
+      oneUsePerUser,
       isEnabled: true
     },
     create: {
@@ -560,48 +579,49 @@ export async function handleAddDiscountText(ctx: BotContext, text: string) {
       percentOff: percentOff > 0 ? percentOff : null,
       amountOffToman: amountOffToman > 0 ? amountOffToman : null,
       maxUses,
-      expiresAt
+      expiresAt,
+      oneUsePerUser
     }
   });
   ctx.session = {};
-  await ctx.reply("Discount code sabt shod.");
+  await ctx.reply("✅ کد تخفیف ثبت شد.");
 }
 
 export async function handleAddPlanTitle(ctx: BotContext, text: string) {
   if (!ensureAdmin(ctx)) return;
   const title = text.trim();
   if (!ctx.session.adminPlanCategoryId || !title) {
-    await ctx.reply("Data plan kamel nist. Dobare Add plan ro bezan.");
+    await ctx.reply("❌ اطلاعات پلن کامل نیست. دوباره از افزودن پلن شروع کنید.");
     ctx.session = {};
     return;
   }
   ctx.session.adminPlanTitle = title;
   ctx.session.flow = "admin_plan_volume";
-  await ctx.reply("Hajm plan ro be GB befrest. Mesal: 20");
+  await ctx.reply("حجم پلن را به گیگابایت ارسال کنید.\nمثال: 20");
 }
 
 export async function handleAddPlanVolume(ctx: BotContext, text: string) {
   if (!ensureAdmin(ctx)) return;
   const volumeGb = Number(text.replace(/[^\d]/g, ""));
   if (!Number.isSafeInteger(volumeGb) || volumeGb <= 0) {
-    await ctx.reply("Hajm dorost nist. Mesal: 20");
+    await ctx.reply("❌ حجم درست نیست. مثال: 20");
     return;
   }
   ctx.session.adminPlanVolumeGb = volumeGb;
   ctx.session.flow = "admin_plan_duration";
-  await ctx.reply("Moddat plan ro be rooz befrest. Mesal: 30");
+  await ctx.reply("مدت پلن را به روز ارسال کنید.\nمثال: 30");
 }
 
 export async function handleAddPlanDuration(ctx: BotContext, text: string) {
   if (!ensureAdmin(ctx)) return;
   const durationDays = Number(text.replace(/[^\d]/g, ""));
   if (!Number.isSafeInteger(durationDays) || durationDays <= 0) {
-    await ctx.reply("Moddat dorost nist. Mesal: 30");
+    await ctx.reply("❌ مدت درست نیست. مثال: 30");
     return;
   }
   ctx.session.adminPlanDurationDays = durationDays;
   ctx.session.flow = "admin_plan_price";
-  await ctx.reply("Gheymat plan ro be toman befrest. Mesal: 250000");
+  await ctx.reply("قیمت پلن را به تومان ارسال کنید.\nمثال: 250000");
 }
 
 export async function handleAddPlanPrice(ctx: BotContext, text: string) {
@@ -612,13 +632,13 @@ export async function handleAddPlanPrice(ctx: BotContext, text: string) {
   const volumeGb = ctx.session.adminPlanVolumeGb;
   const durationDays = ctx.session.adminPlanDurationDays;
   if (!categoryId || !title || !volumeGb || !durationDays || !Number.isSafeInteger(priceToman) || priceToman <= 0) {
-    await ctx.reply("Data plan kamel nist. Dobare Add plan ro bezan.");
+    await ctx.reply("❌ اطلاعات پلن کامل نیست. دوباره از افزودن پلن شروع کنید.");
     ctx.session = {};
     return;
   }
   ctx.session.adminPlanPriceToman = priceToman;
   ctx.session.flow = "admin_plan_squads";
-  await ctx.reply("Agar in plan squad UUID khas dare, comma-separated befrest.\nMesal: uuid1,uuid2\nAgar az category estefade kone, - befrest.");
+  await ctx.reply("اگر این پلن Squad مخصوص دارد، UUID ها را با کاما جدا کنید.\nمثال: uuid1,uuid2\n\nاگر از Squad دسته‌بندی استفاده می‌کند، فقط - ارسال کنید.");
 }
 
 export async function handleAddPlanSquads(ctx: BotContext, text: string) {
@@ -630,7 +650,7 @@ export async function handleAddPlanSquads(ctx: BotContext, text: string) {
   const priceTomanText = ctx.session.adminPlanPriceToman;
   const priceToman = typeof priceTomanText === "number" ? priceTomanText : undefined;
   if (!categoryId || !title || !volumeGb || !durationDays || !priceToman) {
-    await ctx.reply("Data plan kamel nist. Dobare Add plan ro bezan.");
+    await ctx.reply("❌ اطلاعات پلن کامل نیست. دوباره از افزودن پلن شروع کنید.");
     ctx.session = {};
     return;
   }
@@ -639,7 +659,7 @@ export async function handleAddPlanSquads(ctx: BotContext, text: string) {
     data: { categoryId, title, volumeGb, durationDays, priceToman, remnawaveSquadUuids: squadUuids }
   });
   ctx.session = {};
-  await ctx.reply(`Plan sabt shod: ${title} / ${formatGb(volumeGb)} / ${formatToman(priceToman)}`);
+  await ctx.reply(`✅ پلن ثبت شد: ${title} / ${formatGb(volumeGb)} / ${formatToman(priceToman)}`);
   await handlePlans(ctx);
 }
 
@@ -647,14 +667,14 @@ export async function startAddContent(ctx: BotContext, kind: "TRAINING" | "SOFTW
   if (!ensureAdmin(ctx)) return;
   ctx.session.flow = "admin_content";
   ctx.session.contentKind = kind;
-  await ctx.reply("Content ro befrest:\ntitle | body-or-link\nYa photo/document befrest ba caption: title | body");
+  await ctx.reply("محتوا را با این فرمت ارسال کنید:\nعنوان | متن یا لینک\n\nبرای فایل/عکس هم کپشن را همین‌طور بنویسید.");
 }
 
 export async function handleAddContentText(ctx: BotContext, text: string) {
   if (!ensureAdmin(ctx)) return;
   const [title, body] = splitParts(text, 2);
   if (!title) {
-    await ctx.reply("Title lazem ast.");
+    await ctx.reply("❌ عنوان لازم است.");
     return;
   }
 
@@ -667,14 +687,14 @@ export async function handleAddContentText(ctx: BotContext, text: string) {
     }
   });
   ctx.session = {};
-  await ctx.reply("Content sabt shod.");
+  await ctx.reply("✅ محتوا ثبت شد.");
 }
 
 export async function handleAddContentFile(ctx: BotContext, fileId: string, fileType: "PHOTO" | "DOCUMENT", caption?: string) {
   if (!ensureAdmin(ctx)) return;
   const [title, body] = splitParts(caption ?? "", 2);
   if (!title) {
-    await ctx.reply("Caption ba format title | body lazem ast.");
+    await ctx.reply("❌ کپشن باید با فرمت عنوان | متن باشد.");
     return;
   }
 
@@ -688,12 +708,12 @@ export async function handleAddContentFile(ctx: BotContext, fileId: string, file
     }
   });
   ctx.session = {};
-  await ctx.reply("File content sabt shod.");
+  await ctx.reply("✅ فایل محتوا ثبت شد.");
 }
 
 function ensureAdmin(ctx: BotContext): boolean {
   if (!isAdmin(ctx.from?.id)) {
-    void ctx.reply("Dastresi admin nadari.");
+    void ctx.reply("❌ شما دسترسی مدیریت ندارید.");
     return false;
   }
   return true;
@@ -721,6 +741,14 @@ function parseSquadUuids(input: string): string[] {
     .filter(Boolean);
 }
 
+function parseBooleanFlag(input?: string): boolean | null {
+  if (!input) return false;
+  const normalized = input.trim().toLowerCase();
+  if (["yes", "true", "1", "y", "بله"].includes(normalized)) return true;
+  if (["no", "false", "0", "n", "خیر"].includes(normalized)) return false;
+  return null;
+}
+
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -732,8 +760,23 @@ async function sendServiceToUser(ctx: BotContext, telegramId: number, serviceId:
     remnawaveClient.getSubscriptionQr(service.remnawaveUserUuid)
   );
   await ctx.telegram.sendPhoto(telegramId, { source: qr }, {
-    caption: `Username: ${service.username}\nLink: ${service.subscriptionUrl}`,
-    reply_markup: Markup.inlineKeyboard([[Markup.button.callback("📋 دریافت دستی کانفیگ‌ها", `configs:${service.id}`)]]).reply_markup
+    caption: [
+      "✅ سرویس شما آماده است",
+      "",
+      `👤 نام کاربری: ${service.username}`,
+      "",
+      "🔗 لینک ساب:",
+      service.subscriptionUrl,
+      "",
+      "این لینک را کپی کنید و داخل اپ‌های VPN در بخش Import / Subscription وارد کنید.",
+      "اگر روی لینک بزنید، صفحه اطلاعات ساب شما هم باز می‌شود.",
+      "",
+      "برای دریافت کانفیگ‌های تکی، از دکمه زیر استفاده کنید."
+    ].join("\n"),
+    reply_markup: Markup.inlineKeyboard([
+      [Markup.button.url("🔗 باز کردن لینک ساب", service.subscriptionUrl)],
+      [Markup.button.callback("📋 دریافت دستی کانفیگ‌ها", `configs:${service.id}`)]
+    ]).reply_markup
   });
 }
 
@@ -746,11 +789,23 @@ async function sendRenewedServiceToUser(ctx: BotContext, telegramId: number, ser
   const daysLeft = Math.max(0, Math.ceil((service.expiresAt.getTime() - Date.now()) / 86_400_000));
   await ctx.telegram.sendPhoto(telegramId, { source: qr }, {
     caption: [
-      `Username: ${service.username}`,
-      `Link: ${service.subscriptionUrl}`,
-      `Hajm jadid: ${service.volumeGb} GB`,
-      `Rooz baghimande: ${daysLeft}`
+      "✅ سرویس شما تمدید شد",
+      "",
+      `👤 نام کاربری: ${service.username}`,
+      "",
+      "🔗 لینک ساب:",
+      service.subscriptionUrl,
+      "",
+      "این لینک را کپی کنید و داخل اپ‌های VPN در بخش Import / Subscription وارد کنید.",
+      "اگر روی لینک بزنید، صفحه اطلاعات ساب شما هم باز می‌شود.",
+      "",
+      `📦 حجم جدید: ${service.volumeGb} GB`,
+      `⏳ روز باقی‌مانده: ${daysLeft}`
     ].join("\n"),
-    reply_markup: Markup.inlineKeyboard([[Markup.button.callback("📋 دریافت دستی کانفیگ‌ها", `configs:${service.id}`)]]).reply_markup
+    reply_markup: Markup.inlineKeyboard([
+      [Markup.button.url("🔗 باز کردن لینک ساب", service.subscriptionUrl)],
+      [Markup.button.callback("📋 دریافت دستی کانفیگ‌ها", `configs:${service.id}`)]
+    ]).reply_markup
   });
 }
+

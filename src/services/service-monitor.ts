@@ -23,15 +23,19 @@ async function checkPurchasedServices(telegram: Telegram) {
   for (const service of services) {
     try {
       const usage = await remnawaveClient.getUserUsage(service.remnawaveUserUuid);
-      const remainingBytes = Math.max(0, (usage.trafficLimitBytes || service.volumeGb * 1024 * 1024 * 1024) - usage.usedTrafficBytes);
+      const totalBytes = usage.trafficLimitBytes || service.volumeGb * 1024 * 1024 * 1024;
+      const remainingBytes = Math.max(0, totalBytes - usage.usedTrafficBytes);
+
       if (remainingBytes < LOW_TRAFFIC_BYTES && !service.lowTrafficNotifiedAt) {
         await telegram.sendMessage(
           Number(service.user.telegramId),
           [
             "⚠️ حجم سرویس شما کمتر از 1 گیگابایت شده است.",
+            "",
             `👤 سرویس: ${service.username}`,
             `📦 حجم باقی‌مانده: ${formatGb(bytesToGb(remainingBytes))}`,
-            "برای جلوگیری از قطع شدن، می‌توانید همین الان تمدید کنید."
+            "",
+            "برای جلوگیری از قطع شدن سرویس، می‌توانید همین حالا تمدید کنید."
           ].join("\n"),
           Markup.inlineKeyboard([[Markup.button.callback("🔄 تمدید سرویس", `renew:${service.id}`)]])
         );
@@ -44,8 +48,10 @@ async function checkPurchasedServices(telegram: Telegram) {
           .sendMessage(
             Number(service.user.telegramId),
             [
-              "⚠️ پروفایل سرویس شما داخل پنل پیدا نشد و از لیست سرویس‌های ربات حذف شد.",
+              "⚠️ پروفایل این سرویس داخل پنل پیدا نشد و از لیست سرویس‌های شما حذف شد.",
+              "",
               `👤 سرویس: ${service.username}`,
+              "",
               "اگر فکر می‌کنید اشتباهی رخ داده، لطفا با پشتیبانی در ارتباط باشید."
             ].join("\n")
           )

@@ -23,6 +23,8 @@ export type RemnawaveUser = {
   usedTrafficBytes?: number;
   trafficLimitBytes?: number;
   expiresAt?: Date;
+  status?: string;
+  isActive?: boolean;
 };
 
 export type RemnawaveUsage = {
@@ -62,6 +64,8 @@ export class RemnawaveClient {
     const payload = {
       username: input.username,
       status: "ACTIVE",
+      isActive: true,
+      enabled: true,
       trafficLimitBytes: input.trafficLimitBytes,
       trafficLimitStrategy: "NO_RESET",
       expireAt: input.expiresAt.toISOString(),
@@ -83,7 +87,24 @@ export class RemnawaveClient {
     );
 
     const response = await this.#safeRequest(() => this.http.post("/api/users", payload), "create user");
-    return normalizeUser(response.data);
+    const user = normalizeUser(response.data);
+    logger.info(
+      {
+        action: "remnawave.createUser.response",
+        orderId: input.orderId,
+        telegramId: input.telegramId,
+        remnawaveUserUuid: user.uuid,
+        username: user.username,
+        status: user.status,
+        isActive: user.isActive,
+        trafficLimitBytes: user.trafficLimitBytes,
+        expiresAt: user.expiresAt?.toISOString(),
+        hasShortUuid: Boolean(user.shortUuid),
+        squadCount: input.squadUuids.length
+      },
+      "Remnawave user created"
+    );
+    return user;
   }
 
   async getUser(usernameOrUuid: string): Promise<RemnawaveUser | null> {
@@ -186,6 +207,9 @@ export class RemnawaveClient {
     );
 
     const payload = {
+      status: "ACTIVE",
+      isActive: true,
+      enabled: true,
       trafficLimitBytes: nextTrafficLimitBytes,
       trafficLimitStrategy: "NO_RESET",
       expireAt: nextExpiresAt.toISOString(),
@@ -298,7 +322,9 @@ function normalizeUser(raw: unknown): RemnawaveUser {
     subscriptionUrl: firstString(data, ["subscriptionUrl", "subscription_url", "subUrl"]),
     usedTrafficBytes: firstNumber(data, ["usedTrafficBytes", "usedTraffic", "usedTrafficBytesTotal"]),
     trafficLimitBytes: firstNumber(data, ["trafficLimitBytes", "trafficLimit", "totalTrafficBytes"]),
-    expiresAt: firstDate(data, ["expiresAt", "expireAt", "expiredAt"])
+    expiresAt: firstDate(data, ["expiresAt", "expireAt", "expiredAt"]),
+    status: firstString(data, ["status", "state"]),
+    isActive: firstBoolean(data, ["isActive", "active", "enabled"])
   };
 }
 
@@ -334,6 +360,19 @@ function firstNumber(data: RemnawaveRawUser, keys: string[]): number | undefined
     }
     if (typeof value === "string" && Number.isFinite(Number(value))) {
       return Number(value);
+    }
+  }
+  return undefined;
+}
+
+function firstBoolean(data: RemnawaveRawUser, keys: string[]): boolean | undefined {
+  for (const key of keys) {
+    const value = data[key];
+    if (typeof value === "boolean") {
+      return value;
+    }
+    if (typeof value === "string" && ["true", "false"].includes(value.toLowerCase())) {
+      return value.toLowerCase() === "true";
     }
   }
   return undefined;

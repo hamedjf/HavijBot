@@ -1,4 +1,4 @@
-import { Markup } from "telegraf";
+﻿import { Markup } from "telegraf";
 import { getText } from "../services/text-service.js";
 import { normalizeChannelId } from "./membership.js";
 
@@ -29,16 +29,16 @@ export async function membershipKeyboard(channelId: string) {
 
 export function adminMenu() {
   return Markup.inlineKeyboard([
-    [Markup.button.callback("Pending payments", "admin:payments")],
-    [Markup.button.callback("Broadcast PM", "admin:broadcast")],
-    [Markup.button.callback("Card number/text", "admin:card_text")],
-    [Markup.button.callback("Categories", "admin:categories"), Markup.button.callback("Plans", "admin:plans")],
-    [Markup.button.callback("Add category", "admin:add_category"), Markup.button.callback("Add plan", "admin:add_plan")],
-    [Markup.button.callback("Add discount", "admin:add_discount")],
-    [Markup.button.callback("Discounts", "admin:discounts")],
-    [Markup.button.callback("Texts", "admin:texts")],
-    [Markup.button.callback("Add amoozesh", "admin:add_content:TRAINING")],
-    [Markup.button.callback("Add narm afzar", "admin:add_content:SOFTWARE")]
+    [Markup.button.callback("🧾 پرداخت‌های در انتظار", "admin:payments")],
+    [Markup.button.callback("📣 پیام همگانی", "admin:broadcast")],
+    [Markup.button.callback("💳 متن کارت‌به‌کارت", "admin:card_text")],
+    [Markup.button.callback("🗂 دسته‌بندی‌ها", "admin:categories"), Markup.button.callback("📦 پلن‌ها", "admin:plans")],
+    [Markup.button.callback("➕ افزودن دسته‌بندی", "admin:add_category"), Markup.button.callback("➕ افزودن پلن", "admin:add_plan")],
+    [Markup.button.callback("🎟 افزودن کد تخفیف", "admin:add_discount")],
+    [Markup.button.callback("🎟 کدهای تخفیف", "admin:discounts")],
+    [Markup.button.callback("✏️ متن‌های ربات", "admin:texts")],
+    [Markup.button.callback("📚 افزودن آموزش", "admin:add_content:TRAINING")],
+    [Markup.button.callback("📱 افزودن نرم‌افزار", "admin:add_content:SOFTWARE")]
   ]);
 }
 

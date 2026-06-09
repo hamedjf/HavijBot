@@ -352,7 +352,7 @@ export async function provisionService(orderId: string): Promise<OrderWithUserPl
       telegramId: Number(order.user.telegramId),
       trafficLimitBytes: gbToBytes(order.plan.volumeGb),
       expiresAt,
-      squadUuid: order.plan.category.remnawaveSquadUuid,
+      squadUuids: getPlanSquadUuids(order.plan),
       orderId: order.id
     });
     const subscriptionUrl = await remnawaveClient.getSubscriptionUrl(remoteUser.uuid);
@@ -496,4 +496,18 @@ function addDaysFromBase(baseDate: Date, days: number): Date {
   const nextExpiresAt = new Date(nextExpiryBase);
   nextExpiresAt.setDate(nextExpiresAt.getDate() + days);
   return nextExpiresAt;
+}
+
+function getPlanSquadUuids(plan: Plan & { category: PlanCategory }): string[] {
+  const planSquads = plan.remnawaveSquadUuids.filter(Boolean);
+  if (planSquads.length > 0) {
+    return planSquads;
+  }
+
+  const categorySquads = plan.category.remnawaveSquadUuids.filter(Boolean);
+  if (categorySquads.length > 0) {
+    return categorySquads;
+  }
+
+  return [plan.category.remnawaveSquadUuid].filter(Boolean);
 }

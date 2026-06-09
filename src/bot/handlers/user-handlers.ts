@@ -3,6 +3,7 @@ import type { BotContext } from "../context.js";
 import { config } from "../../config.js";
 import { bytesToGb, formatDays, formatGb, formatToman } from "../../domain/format.js";
 import { parseReferralPayload } from "../../domain/referral.js";
+import { isValidServiceUsername } from "../../domain/username.js";
 import { prisma } from "../../db.js";
 import { logger } from "../../logger.js";
 import { remnawaveClient } from "../../remnawave/remnawave-client.js";
@@ -41,12 +42,12 @@ export async function handleBuy(ctx: BotContext) {
   });
 
   if (categories.length === 0) {
-    await ctx.reply("Hanooz plani faal nist.");
+    await ctx.reply("⏳ فعلا پلن فعالی برای خرید وجود ندارد.");
     return;
   }
 
   await ctx.reply(
-    "Noe service ro entekhab kon:",
+    "🛍️ نوع سرویس را انتخاب کنید:",
     Markup.inlineKeyboard(categories.map((category) => [Markup.button.callback(category.title, `cat:${category.id}`)]))
   );
 }
@@ -60,18 +61,15 @@ export async function handleCategory(ctx: BotContext, categoryId: string) {
   });
 
   if (plans.length === 0) {
-    await ctx.reply("Baraye in category plan faal nist.");
+    await ctx.reply("⏳ برای این دسته‌بندی فعلا پلن فعالی وجود ندارد.");
     return;
   }
 
   await ctx.reply(
-    "Plan ro entekhab kon:",
+    "📋 پلن مورد نظر را انتخاب کنید:",
     Markup.inlineKeyboard(
       plans.map((plan) => [
-        Markup.button.callback(
-          `${plan.title} - ${formatGb(plan.volumeGb)} - ${formatDays(plan.durationDays)} - ${formatToman(plan.priceToman)}`,
-          `plan:${plan.id}`
-        )
+        Markup.button.callback(plan.title, `plan:${plan.id}`)
       ])
     )
   );
@@ -81,13 +79,17 @@ export async function handlePlan(ctx: BotContext, planId: string) {
   if (!(await ensureAllowed(ctx))) return;
   ctx.session.flow = "purchase_username";
   ctx.session.planId = planId;
-  await ctx.reply("Username service ro befrest. Mesal: Hamed");
+  await ctx.reply("👤 نام کاربری سرویس را ارسال کنید.\n\nقانون: Username can only contain letters, numbers, underscores and dashes\nمثال: Hamed_20");
 }
 
 export async function handleUsernameMessage(ctx: BotContext, text: string) {
   const user = await upsertTelegramUser(ctx);
+  if (!isValidServiceUsername(text)) {
+    await ctx.reply("❌ نام کاربری نامعتبر است.\nUsername can only contain letters, numbers, underscores and dashes\nحداقل ۳ و حداکثر ۲۸ کاراکتر.");
+    return;
+  }
   if (!ctx.session.planId) {
-    await ctx.reply("Plan peyda nashod. Dobare az menu kharid shoroo kon.");
+    await ctx.reply("❌ پلن پیدا نشد. دوباره از منوی خرید شروع کنید.");
     ctx.session = {};
     return;
   }
@@ -102,7 +104,7 @@ export async function handlePayCard(ctx: BotContext, orderId: string) {
   if (!(await ensureAllowed(ctx))) return;
   const { due } = await getOrderPayable(orderId);
   if (due <= 0) {
-    await ctx.reply("Mablaghe card-to-card sefr ast. Az payment wallet/takhfif edame bede.");
+    await ctx.reply("✅ مبلغ کارت‌به‌کارت صفر است. پرداخت را با کیف پول یا تخفیف ادامه دهید.");
     return;
   }
   await prisma.order.update({
@@ -111,8 +113,8 @@ export async function handlePayCard(ctx: BotContext, orderId: string) {
   });
   ctx.session.flow = "awaiting_receipt";
   ctx.session.orderId = orderId;
-  await ctx.reply(`Lotfan ${formatToman(due)} ro card be card kon:\n\n${config.CARD_TO_CARD_TEXT}`);
-  await ctx.reply("Bad az pardakht, screenshot resid ro haminja befrest.");
+  await ctx.reply(`💳 لطفا مبلغ ${formatToman(due)} را کارت‌به‌کارت کنید:\n\n${config.CARD_TO_CARD_TEXT}`);
+  await ctx.reply("📸 بعد از پرداخت، اسکرین‌شات رسید را همینجا ارسال کنید.");
 }
 
 export async function handlePayWallet(ctx: BotContext, orderId: string) {
@@ -126,7 +128,7 @@ export async function handlePayWallet(ctx: BotContext, orderId: string) {
       await sendProvisionedService(ctx, order.id);
     }
   } catch (error) {
-    await ctx.reply(error instanceof Error ? error.message : "Pardakht ba wallet namovafagh bood.");
+    await ctx.reply(error instanceof Error ? `❌ ${error.message}` : "❌ پرداخت با کیف پول ناموفق بود.");
   }
 }
 
@@ -134,12 +136,12 @@ export async function handleDiscountStart(ctx: BotContext, orderId: string) {
   if (!(await ensureAllowed(ctx))) return;
   ctx.session.flow = "discount_code";
   ctx.session.orderId = orderId;
-  await ctx.reply("Code takhfif ro befrest.");
+  await ctx.reply("🎟️ کد تخفیف را ارسال کنید.");
 }
 
 export async function handleDiscountCode(ctx: BotContext, text: string) {
   if (!ctx.session.orderId) {
-    await ctx.reply("Order peyda nashod. Dobare kharid ro shoroo kon.");
+    await ctx.reply("❌ سفارش پیدا نشد. دوباره خرید را شروع کنید.");
     ctx.session = {};
     return;
   }
@@ -147,10 +149,10 @@ export async function handleDiscountCode(ctx: BotContext, text: string) {
   try {
     const order = await applyDiscountCode(ctx.session.orderId, text);
     ctx.session.flow = undefined;
-    await ctx.reply(`Code takhfif emal shod: ${formatToman(order.discountAmountToman)} kam shod.`);
+    await ctx.reply(`✅ کد تخفیف اعمال شد.\nمبلغ تخفیف: ${formatToman(order.discountAmountToman)}`);
     await sendCheckoutOptions(ctx, order.id);
   } catch (error) {
-    await ctx.reply(error instanceof Error ? error.message : "Code takhfif emal nashod.");
+    await ctx.reply(error instanceof Error ? `❌ ${error.message}` : "❌ کد تخفیف اعمال نشد.");
   }
 }
 
@@ -159,7 +161,7 @@ export async function handleApplyWallet(ctx: BotContext, orderId: string) {
   try {
     const order = await applyWalletOffset(orderId);
     const due = order.cardAmountToman ?? 0;
-    await ctx.reply(`Az kife pool ${formatToman(order.walletAppliedToman)} kam mishe.${due > 0 ? ` Mablaghe baghimande: ${formatToman(due)}` : ""}`);
+    await ctx.reply(`✅ مبلغ ${formatToman(order.walletAppliedToman)} از کیف پول استفاده می‌شود.${due > 0 ? `\nمبلغ باقی‌مانده: ${formatToman(due)}` : ""}`);
     if (due === 0) {
       const paidOrder = await finalizeWalletCoveredOrder(order.id);
       if (paidOrder.type === "SERVICE_RENEWAL") {
@@ -171,35 +173,36 @@ export async function handleApplyWallet(ctx: BotContext, orderId: string) {
     }
     await sendCheckoutOptions(ctx, order.id);
   } catch (error) {
-    await ctx.reply(error instanceof Error ? error.message : "Kife pool emal nashod.");
+    await ctx.reply(error instanceof Error ? `❌ ${error.message}` : "❌ کیف پول اعمال نشد.");
   }
 }
 
 export async function handleWalletCharge(ctx: BotContext) {
   if (!(await ensureAllowed(ctx))) return;
   ctx.session.flow = "wallet_amount";
-  await ctx.reply("Mablaghe charge kife pool ro be toman befrest. Mesal: 200000");
+  await ctx.reply("💳 مبلغ شارژ کیف پول را به تومان ارسال کنید.\nمثال: 200000");
 }
 
 export async function handleWalletAmount(ctx: BotContext, text: string) {
   const user = await upsertTelegramUser(ctx);
   const amount = Number(text.replace(/[^\d]/g, ""));
   if (!Number.isSafeInteger(amount) || amount < 1000) {
-    await ctx.reply("Mablagh dorost nist. Mesal: 200000");
+    await ctx.reply("❌ مبلغ درست نیست.\nمثال: 200000");
     return;
   }
 
   const order = await createWalletTopupOrder(user.id, amount);
   ctx.session.flow = "awaiting_receipt";
   ctx.session.orderId = order.id;
-  await ctx.reply(`Baraye charge ${formatToman(amount)} card be card kon:\n\n${config.CARD_TO_CARD_TEXT}`);
-  await ctx.reply("Bad az pardakht, screenshot resid ro befrest.");
+  await ctx.reply(`💳 برای شارژ ${formatToman(amount)} کارت‌به‌کارت کنید:\n\n${config.CARD_TO_CARD_TEXT}`);
+  await ctx.reply("📸 بعد از پرداخت، اسکرین‌شات رسید را ارسال کنید.");
 }
 
 export async function handleReceiptPhoto(ctx: BotContext, fileId: string) {
   const orderId = ctx.session.orderId;
   if (!orderId || ctx.session.flow !== "awaiting_receipt") {
-    await ctx.reply("Pardakht pending peyda nashod. Aval az menu kharid ya charge shoroo kon.");
+    await ctx.reply("❌ پرداخت در انتظار پیدا نشد. اول از منوی خرید یا شارژ شروع کنید.");
+    await replyMainMenu(ctx);
     return;
   }
 
@@ -252,10 +255,11 @@ export async function handleReceiptPhoto(ctx: BotContext, fileId: string) {
   }
 
   if (deliveredCount === 0) {
-    await ctx.reply("Resid sabt shod vali be admin ersal nashod. Lotfan be support etela bede.");
+    await ctx.reply("⚠️ رسید ثبت شد اما برای ادمین ارسال نشد. لطفا به پشتیبانی اطلاع دهید.");
   } else {
-    await ctx.reply("Resid darja baraye admin ersal shod. Bad az taeed, natije behet elam mishe.");
+    await ctx.reply("✅ رسید شما بلافاصله برای ادمین ارسال شد.\nبعد از تایید، نتیجه به شما اعلام می‌شود.");
   }
+  await replyMainMenu(ctx);
 }
 
 export async function handleMyServices(ctx: BotContext) {
@@ -267,12 +271,12 @@ export async function handleMyServices(ctx: BotContext) {
   });
 
   if (services.length === 0) {
-    await ctx.reply("Hanooz service faal nadari.");
+    await ctx.reply("📭 هنوز سرویس فعالی ندارید.");
     return;
   }
 
   await ctx.reply(
-    "Service haye shoma:",
+    "📦 سرویس‌های شما:",
     Markup.inlineKeyboard(services.map((service) => [Markup.button.callback(service.username, `svc:${service.id}`)]))
   );
 }
@@ -281,7 +285,7 @@ export async function handleServiceDetail(ctx: BotContext, serviceId: string) {
   if (!(await ensureAllowed(ctx))) return;
   const service = await prisma.purchasedService.findUnique({ where: { id: serviceId } });
   if (!service) {
-    await ctx.reply("Service peyda nashod.");
+    await ctx.reply("❌ سرویس پیدا نشد.");
     return;
   }
 
@@ -296,12 +300,12 @@ export async function handleServiceDetail(ctx: BotContext, serviceId: string) {
     { source: qr },
     {
       caption: [
-        `Username: ${service.username}`,
-        `Link: ${subscriptionUrl}`,
-        `Masraf: ${usedGb} / ${totalGb} GB`,
-        `Rooz baghimande: ${daysLeft}`
+        `👤 نام کاربری: ${service.username}`,
+        `🔗 لینک: ${subscriptionUrl}`,
+        `📊 مصرف: ${usedGb} / ${totalGb} GB`,
+        `⏳ روز باقی‌مانده: ${daysLeft}`
       ].join("\n"),
-      reply_markup: Markup.inlineKeyboard([[Markup.button.callback("Tamdid service", `renew:${service.id}`)]]).reply_markup
+      reply_markup: Markup.inlineKeyboard([[Markup.button.callback("🔄 تمدید سرویس", `renew:${service.id}`)]]).reply_markup
     }
   );
 }
@@ -311,12 +315,12 @@ export async function handleRenewService(ctx: BotContext, serviceId: string) {
   const user = await upsertTelegramUser(ctx);
   const service = await prisma.purchasedService.findFirst({ where: { id: serviceId, userId: user.id } });
   if (!service) {
-    await ctx.reply("Service baraye tamdid peyda nashod.");
+    await ctx.reply("❌ سرویس برای تمدید پیدا نشد.");
     return;
   }
 
   await ctx.reply(
-    "Hajme tamdid ro entekhab kon. Be har gozine zaman ham ezafe mishe:",
+    "🔄 حجم تمدید را انتخاب کنید.\nبه هر گزینه زمان هم اضافه می‌شود:",
     Markup.inlineKeyboard(
       config.RENEWAL_PLANS.map((option) => [
         Markup.button.callback(
@@ -333,13 +337,13 @@ export async function handleRenewOption(ctx: BotContext, serviceId: string, volu
   const user = await upsertTelegramUser(ctx);
   const option = config.RENEWAL_PLANS.find((item) => item.volumeGb === volumeGb);
   if (!option) {
-    await ctx.reply("Gozine tamdid peyda nashod.");
+    await ctx.reply("❌ گزینه تمدید پیدا نشد.");
     return;
   }
 
   const order = await createRenewalOrder(user.id, serviceId, option.volumeGb, option.durationDays, option.priceToman);
   ctx.session.orderId = order.id;
-  await ctx.reply(`Tamdid ${formatGb(option.volumeGb)} + ${formatDays(option.durationDays)} sabt shod.`);
+  await ctx.reply(`✅ تمدید ${formatGb(option.volumeGb)} + ${formatDays(option.durationDays)} ثبت شد.`);
   await sendCheckoutOptions(ctx, order.id);
 }
 
@@ -348,7 +352,7 @@ export async function handleReferral(ctx: BotContext) {
   const botInfo = await ctx.telegram.getMe();
   const link = `https://t.me/${botInfo.username}?start=ref_${user.referralCode}`;
   const balance = await getWalletBalance(user.id);
-  await ctx.reply([`Link davat shoma:`, link, `Reward har invite: ${formatToman(config.REFERRAL_REWARD_TOMAN)}`, `Mojoodi shoma: ${formatToman(balance)}`].join("\n"));
+  await ctx.reply([`🎁 لینک دعوت شما:`, link, `💰 پاداش هر دعوت: ${formatToman(config.REFERRAL_REWARD_TOMAN)}`, `👛 موجودی شما: ${formatToman(balance)}`].join("\n"));
 }
 
 export async function handleContent(ctx: BotContext, kind: "TRAINING" | "SOFTWARE") {
@@ -359,12 +363,12 @@ export async function handleContent(ctx: BotContext, kind: "TRAINING" | "SOFTWAR
   });
 
   if (items.length === 0) {
-    await ctx.reply("Hanooz itemi sabt nashode.");
+    await ctx.reply("📭 هنوز آیتمی ثبت نشده است.");
     return;
   }
 
   await ctx.reply(
-    "Yeki ro entekhab kon:",
+    "👇 یکی را انتخاب کنید:",
     Markup.inlineKeyboard(items.map((item) => [Markup.button.callback(item.title, `content_item:${item.id}`)]))
   );
 }
@@ -373,7 +377,7 @@ export async function handleContentItem(ctx: BotContext, itemId: string) {
   if (!(await ensureAllowed(ctx))) return;
   const item = await prisma.adminContent.findUnique({ where: { id: itemId } });
   if (!item || !item.isEnabled) {
-    await ctx.reply("Item peyda nashod.");
+    await ctx.reply("❌ آیتم پیدا نشد.");
     return;
   }
 
@@ -388,13 +392,14 @@ export async function handleContentItem(ctx: BotContext, itemId: string) {
 }
 
 export async function handleSupport(ctx: BotContext) {
-  await ctx.reply(`Poshtibani: ${config.SUPPORT_USERNAME}`);
+  await ctx.reply(`🧑‍💻 پشتیبانی: ${config.SUPPORT_USERNAME}`);
+  await replyMainMenu(ctx);
 }
 
 export async function sendProvisionedService(ctx: BotContext, orderId: string) {
   const service = await prisma.purchasedService.findUnique({ where: { orderId } });
   if (!service) {
-    await ctx.reply("Service sakhte shod vali local record peyda nashod. Be admin etela bede.");
+    await ctx.reply("⚠️ سرویس ساخته شد اما رکورد داخلی پیدا نشد. لطفا به پشتیبانی اطلاع دهید.");
     return;
   }
 
@@ -402,9 +407,10 @@ export async function sendProvisionedService(ctx: BotContext, orderId: string) {
   await ctx.replyWithPhoto(
     { source: qr },
     {
-      caption: [`Service shoma amade ast.`, `Username: ${service.username}`, `Link: ${service.subscriptionUrl}`].join("\n")
+      caption: [`✅ سرویس شما آماده است.`, `👤 نام کاربری: ${service.username}`, `🔗 لینک: ${service.subscriptionUrl}`].join("\n")
     }
   );
+  await replyMainMenu(ctx);
 }
 
 export async function sendRenewedService(ctx: BotContext, orderId: string) {
@@ -413,7 +419,7 @@ export async function sendRenewedService(ctx: BotContext, orderId: string) {
     include: { targetService: true }
   });
   if (!order?.targetService) {
-    await ctx.reply("Tamdid anjam shod vali service local peyda nashod. Be admin etela bede.");
+    await ctx.reply("⚠️ تمدید انجام شد اما سرویس داخلی پیدا نشد. لطفا به پشتیبانی اطلاع دهید.");
     return;
   }
 
@@ -424,14 +430,15 @@ export async function sendRenewedService(ctx: BotContext, orderId: string) {
     { source: qr },
     {
       caption: [
-        "Service shoma tamdid shod.",
-        `Username: ${service.username}`,
-        `Link: ${service.subscriptionUrl}`,
-        `Hajm jadid: ${formatGb(service.volumeGb)}`,
-        `Rooz baghimande: ${daysLeft}`
+        "✅ سرویس شما تمدید شد.",
+        `👤 نام کاربری: ${service.username}`,
+        `🔗 لینک: ${service.subscriptionUrl}`,
+        `📦 حجم جدید: ${formatGb(service.volumeGb)}`,
+        `⏳ روز باقی‌مانده: ${daysLeft}`
       ].join("\n")
     }
   );
+  await replyMainMenu(ctx);
 }
 
 async function ensureAllowed(ctx: BotContext): Promise<boolean> {
@@ -448,19 +455,19 @@ async function sendCheckoutOptions(ctx: BotContext, orderId: string) {
   const balance = await getWalletBalance(order.userId);
   await ctx.reply(
     [
-      `Mablagh asli: ${formatToman(order.amountToman)}`,
-      order.discountAmountToman > 0 ? `Takhfif: ${formatToman(order.discountAmountToman)}` : undefined,
-      order.walletAppliedToman > 0 ? `Kife pool: ${formatToman(order.walletAppliedToman)}` : undefined,
-      `Mablaghe payable: ${formatToman(due)}`,
-      `Mojoodi kife pool: ${formatToman(balance)}`
+      `💵 مبلغ اصلی: ${formatToman(order.amountToman)}`,
+      order.discountAmountToman > 0 ? `🎟️ تخفیف: ${formatToman(order.discountAmountToman)}` : undefined,
+      order.walletAppliedToman > 0 ? `👛 کیف پول: ${formatToman(order.walletAppliedToman)}` : undefined,
+      `✅ مبلغ قابل پرداخت: ${formatToman(due)}`,
+      `👛 موجودی کیف پول: ${formatToman(balance)}`
     ]
       .filter(Boolean)
       .join("\n"),
     Markup.inlineKeyboard([
-      [Markup.button.callback("Code takhfif daram", `discount:${orderId}`)],
-      [Markup.button.callback("Kam kardan az kife pool", `apply_wallet:${orderId}`)],
-      [Markup.button.callback("Pardakht kamel ba wallet", `pay_wallet:${orderId}`)],
-      [Markup.button.callback("Card be card", `pay_card:${orderId}`)]
+      [Markup.button.callback("🎟️ کد تخفیف دارم", `discount:${orderId}`)],
+      [Markup.button.callback("👛 کم کردن از کیف پول", `apply_wallet:${orderId}`)],
+      [Markup.button.callback("✅ پرداخت کامل با کیف پول", `pay_wallet:${orderId}`)],
+      [Markup.button.callback("💳 کارت‌به‌کارت", `pay_card:${orderId}`)]
     ])
   );
 }

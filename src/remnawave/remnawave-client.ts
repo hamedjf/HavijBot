@@ -8,7 +8,7 @@ export type CreateUserInput = {
   telegramId: number;
   trafficLimitBytes: number;
   expiresAt: Date;
-  squadUuid: string;
+  squadUuids: string[];
   orderId: string;
 };
 
@@ -64,8 +64,8 @@ export class RemnawaveClient {
       expireAt: input.expiresAt.toISOString(),
       expiresAt: input.expiresAt.toISOString(),
       telegramId: input.telegramId,
-      activeInternalSquads: [input.squadUuid],
-      internalSquads: [input.squadUuid],
+      activeInternalSquads: input.squadUuids,
+      internalSquads: input.squadUuids,
       description: `HavijBot order ${input.orderId}`
     };
 
@@ -170,7 +170,7 @@ export class RemnawaveClient {
       expiresAt: nextExpiresAt.toISOString()
     };
 
-    const response = await this.#safeRequest(() => this.http.patch(`/api/users/${encodeURIComponent(input.userUuid)}`, payload), "extend user");
+    const response = await this.#safeRequest(() => this.http.patch("/api/users", { uuid: input.userUuid, ...payload }), "extend user");
     return normalizeUser(response.data);
   }
 

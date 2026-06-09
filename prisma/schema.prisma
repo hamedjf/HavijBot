@@ -87,6 +87,7 @@ model PlanCategory {
   title                 String
   slug                  String   @unique
   remnawaveSquadUuid    String
+  remnawaveSquadUuids   String[] @default([])
   isEnabled             Boolean  @default(true)
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
@@ -100,6 +101,7 @@ model Plan {
   volumeGb       Int
   durationDays   Int
   priceToman     Int
+  remnawaveSquadUuids String[] @default([])
   isEnabled      Boolean      @default(true)
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt

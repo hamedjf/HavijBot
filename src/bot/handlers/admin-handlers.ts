@@ -88,8 +88,8 @@ export async function handleCategoryDetail(ctx: BotContext, categoryId: string) 
   await ctx.reply(
     [
       `Title: ${category.title}`,
-      `Slug: ${category.slug}`,
-      `Squad: ${category.remnawaveSquadUuid}`,
+        `Slug: ${category.slug}`,
+      `Squads: ${category.remnawaveSquadUuids.length > 0 ? category.remnawaveSquadUuids.join(", ") : category.remnawaveSquadUuid}`,
       `Status: ${category.isEnabled ? "enabled" : "disabled"}`,
       `Plans: ${category._count.plans}`
     ].join("\n"),
@@ -151,6 +151,79 @@ export async function handlePlans(ctx: BotContext) {
   );
 }
 
+export async function handleDiscounts(ctx: BotContext) {
+  if (!ensureAdmin(ctx)) return;
+  const discounts = await prisma.discountCode.findMany({ orderBy: { createdAt: "desc" } });
+
+  if (discounts.length === 0) {
+    await ctx.reply("Discount code nadari.", Markup.inlineKeyboard([[Markup.button.callback("Add discount", "admin:add_discount")]]));
+    return;
+  }
+
+  await ctx.reply(
+    "Discount code ha:",
+    Markup.inlineKeyboard([
+      ...discounts.map((discount) => [
+        Markup.button.callback(
+          `${discount.isEnabled ? "ON" : "OFF"} ${discount.code} - ${discount.percentOff ? `${discount.percentOff}%` : formatToman(discount.amountOffToman ?? 0)}`,
+          `admin:discount:${discount.id}`
+        )
+      ]),
+      [Markup.button.callback("Add discount", "admin:add_discount")]
+    ])
+  );
+}
+
+export async function handleDiscountDetail(ctx: BotContext, discountId: string) {
+  if (!ensureAdmin(ctx)) return;
+  const discount = await prisma.discountCode.findUnique({ where: { id: discountId } });
+  if (!discount) {
+    await ctx.reply("Discount peyda nashod.");
+    return;
+  }
+
+  await ctx.reply(
+    [
+      `Code: ${discount.code}`,
+      `Percent: ${discount.percentOff ?? "-"}`,
+      `Amount: ${discount.amountOffToman ? formatToman(discount.amountOffToman) : "-"}`,
+      `Uses: ${discount.usedCount}${discount.maxUses ? ` / ${discount.maxUses}` : ""}`,
+      `Expires: ${discount.expiresAt?.toISOString().slice(0, 10) ?? "-"}`,
+      `Status: ${discount.isEnabled ? "enabled" : "disabled"}`
+    ].join("\n"),
+    Markup.inlineKeyboard([
+      [Markup.button.callback(discount.isEnabled ? "Disable" : "Enable", `admin:discount_toggle:${discount.id}`)],
+      [Markup.button.callback("Remove discount", `admin:discount_delete:${discount.id}`)],
+      [Markup.button.callback("Back", "admin:discounts")]
+    ])
+  );
+}
+
+export async function handleToggleDiscount(ctx: BotContext, discountId: string) {
+  if (!ensureAdmin(ctx)) return;
+  const discount = await prisma.discountCode.findUnique({ where: { id: discountId } });
+  if (!discount) {
+    await ctx.reply("Discount peyda nashod.");
+    return;
+  }
+  await prisma.discountCode.update({ where: { id: discountId }, data: { isEnabled: !discount.isEnabled } });
+  await ctx.reply("Discount update shod.");
+  await handleDiscounts(ctx);
+}
+
+export async function handleDeleteDiscount(ctx: BotContext, discountId: string) {
+  if (!ensureAdmin(ctx)) return;
+  const orderCount = await prisma.order.count({ where: { discountCodeId: discountId } });
+  if (orderCount > 0) {
+    await prisma.discountCode.update({ where: { id: discountId }, data: { isEnabled: false } });
+    await ctx.reply("In discount order dare, delete nashod; disable shod.");
+  } else {
+    await prisma.discountCode.delete({ where: { id: discountId } });
+    await ctx.reply("Discount remove shod.");
+  }
+  await handleDiscounts(ctx);
+}
+
 export async function handlePlanDetail(ctx: BotContext, planId: string) {
   if (!ensureAdmin(ctx)) return;
   const plan = await prisma.plan.findUnique({ where: { id: planId }, include: { category: true } });
@@ -166,6 +239,7 @@ export async function handlePlanDetail(ctx: BotContext, planId: string) {
       `Volume: ${formatGb(plan.volumeGb)}`,
       `Duration: ${formatDays(plan.durationDays)}`,
       `Price: ${formatToman(plan.priceToman)}`,
+      `Squads: ${plan.remnawaveSquadUuids.length > 0 ? plan.remnawaveSquadUuids.join(", ") : "category default"}`,
       `Status: ${plan.isEnabled ? "enabled" : "disabled"}`
     ].join("\n"),
     Markup.inlineKeyboard([
@@ -282,8 +356,8 @@ export async function handleAddCategorySquad(ctx: BotContext, text: string) {
   const slug = slugify(title);
   await prisma.planCategory.upsert({
     where: { slug },
-    update: { title, remnawaveSquadUuid, isEnabled: true },
-    create: { title, slug, remnawaveSquadUuid }
+    update: { title, remnawaveSquadUuid: parseSquadUuids(remnawaveSquadUuid)[0] ?? remnawaveSquadUuid, remnawaveSquadUuids: parseSquadUuids(remnawaveSquadUuid), isEnabled: true },
+    create: { title, slug, remnawaveSquadUuid: parseSquadUuids(remnawaveSquadUuid)[0] ?? remnawaveSquadUuid, remnawaveSquadUuids: parseSquadUuids(remnawaveSquadUuid) }
   });
   ctx.session = {};
   await ctx.reply(`Category sabt shod: ${title}`);
@@ -411,8 +485,27 @@ export async function handleAddPlanPrice(ctx: BotContext, text: string) {
     ctx.session = {};
     return;
   }
+  ctx.session.adminPlanPriceToman = priceToman;
+  ctx.session.flow = "admin_plan_squads";
+  await ctx.reply("Agar in plan squad UUID khas dare, comma-separated befrest.\nMesal: uuid1,uuid2\nAgar az category estefade kone, - befrest.");
+}
+
+export async function handleAddPlanSquads(ctx: BotContext, text: string) {
+  if (!ensureAdmin(ctx)) return;
+  const categoryId = ctx.session.adminPlanCategoryId;
+  const title = ctx.session.adminPlanTitle;
+  const volumeGb = ctx.session.adminPlanVolumeGb;
+  const durationDays = ctx.session.adminPlanDurationDays;
+  const priceTomanText = ctx.session.adminPlanPriceToman;
+  const priceToman = typeof priceTomanText === "number" ? priceTomanText : undefined;
+  if (!categoryId || !title || !volumeGb || !durationDays || !priceToman) {
+    await ctx.reply("Data plan kamel nist. Dobare Add plan ro bezan.");
+    ctx.session = {};
+    return;
+  }
+  const squadUuids = text.trim() === "-" ? [] : parseSquadUuids(text);
   await prisma.plan.create({
-    data: { categoryId, title, volumeGb, durationDays, priceToman }
+    data: { categoryId, title, volumeGb, durationDays, priceToman, remnawaveSquadUuids: squadUuids }
   });
   ctx.session = {};
   await ctx.reply(`Plan sabt shod: ${title} / ${formatGb(volumeGb)} / ${formatToman(priceToman)}`);
@@ -488,6 +581,13 @@ function slugify(title: string): string {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
   return slug || `category-${Date.now()}`;
+}
+
+function parseSquadUuids(input: string): string[] {
+  return input
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
 async function sendServiceToUser(ctx: BotContext, telegramId: number, serviceId: string) {

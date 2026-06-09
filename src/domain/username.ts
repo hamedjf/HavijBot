@@ -9,6 +9,10 @@ export function sanitizeUsername(input: string): string {
   return sanitized.length >= 3 ? sanitized : `user_${Date.now().toString().slice(-6)}`;
 }
 
+export function isValidServiceUsername(input: string): boolean {
+  return /^[A-Za-z0-9_-]{3,28}$/.test(input.trim());
+}
+
 export function withRandomSuffix(username: string, suffix = randomFourDigits()): string {
   const base = username.slice(0, 24);
   return `${base}_${suffix}`;
@@ -17,4 +21,3 @@ export function withRandomSuffix(username: string, suffix = randomFourDigits()):
 export function randomFourDigits(): string {
   return String(Math.floor(1000 + Math.random() * 9000));
 }
-

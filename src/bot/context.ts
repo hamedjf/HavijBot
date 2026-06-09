@@ -13,6 +13,7 @@ export type SessionState = {
     | "admin_plan_volume"
     | "admin_plan_duration"
     | "admin_plan_price"
+    | "admin_plan_squads"
     | "admin_content"
     | "admin_discount";
   planId?: string;
@@ -23,6 +24,7 @@ export type SessionState = {
   adminPlanTitle?: string;
   adminPlanVolumeGb?: number;
   adminPlanDurationDays?: number;
+  adminPlanPriceToman?: number;
 };
 
 export type BotContext = Context & {

@@ -4,10 +4,9 @@ import { mainMenu, membershipKeyboard } from "./keyboards.js";
 import { isAdmin } from "./membership.js";
 
 export async function replyMainMenu(ctx: BotContext) {
-  await ctx.reply("Menu asli:", mainMenu(isAdmin(ctx.from?.id)));
+  await ctx.reply("🌟 به ربات مدیریت سرویس خوش آمدید.\nیکی از گزینه‌های زیر را انتخاب کنید:", mainMenu(isAdmin(ctx.from?.id)));
 }
 
 export async function replyJoinRequired(ctx: BotContext) {
-  await ctx.reply("Baraye estefade az bot, aval join channel asli sho.", membershipKeyboard(config.MAIN_CHANNEL_ID));
+  await ctx.reply("🔒 برای استفاده از ربات، ابتدا عضو کانال اصلی شوید.\nبعد از عضویت روی «عضو شدم» بزنید.", membershipKeyboard(config.MAIN_CHANNEL_ID));
 }
-

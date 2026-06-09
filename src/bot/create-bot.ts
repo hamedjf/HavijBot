@@ -11,6 +11,7 @@ import {
   handleAddCategoryTitle,
   handleAddPlanDuration,
   handleAddPlanPrice,
+  handleAddPlanSquads,
   handleAddPlanTitle,
   handleAddPlanVolume,
   handleAdmin,
@@ -18,13 +19,17 @@ import {
   handleCategories,
   handleCategoryDetail,
   handleDeleteCategory,
+  handleDeleteDiscount,
   handleDeletePlan,
+  handleDiscountDetail,
+  handleDiscounts,
   handlePendingPayments,
   handlePlanCategorySelected,
   handlePlanDetail,
   handlePlans,
   handleReject,
   handleToggleCategory,
+  handleToggleDiscount,
   handleTogglePlan,
   startAddCategory,
   startAddDiscount,
@@ -229,6 +234,22 @@ export function createBot() {
     await ctx.answerCbQuery();
     await handlePlans(ctx);
   });
+  bot.action("admin:discounts", async (ctx) => {
+    await ctx.answerCbQuery();
+    await handleDiscounts(ctx);
+  });
+  bot.action(/^admin:discount:(.+)$/, async (ctx) => {
+    await ctx.answerCbQuery();
+    await handleDiscountDetail(ctx, ctx.match[1]);
+  });
+  bot.action(/^admin:discount_toggle:(.+)$/, async (ctx) => {
+    await ctx.answerCbQuery();
+    await handleToggleDiscount(ctx, ctx.match[1]);
+  });
+  bot.action(/^admin:discount_delete:(.+)$/, async (ctx) => {
+    await ctx.answerCbQuery();
+    await handleDeleteDiscount(ctx, ctx.match[1]);
+  });
   bot.action(/^admin:plan:(.+)$/, async (ctx) => {
     await ctx.answerCbQuery();
     await handlePlanDetail(ctx, ctx.match[1]);
@@ -321,6 +342,9 @@ export function createBot() {
         break;
       case "admin_plan_price":
         await handleAddPlanPrice(ctx, text);
+        break;
+      case "admin_plan_squads":
+        await handleAddPlanSquads(ctx, text);
         break;
       case "admin_discount":
         await handleAddDiscountText(ctx, text);

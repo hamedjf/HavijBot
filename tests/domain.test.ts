@@ -2,13 +2,20 @@ import { describe, expect, it } from "vitest";
 import { calculateDiscountAmount, payableAmount, walletOffsetForOrder } from "../src/domain/checkout.js";
 import { expirationFromNow, gbToBytes } from "../src/domain/plans.js";
 import { makeReferralCode, parseReferralPayload } from "../src/domain/referral.js";
-import { sanitizeUsername, withRandomSuffix } from "../src/domain/username.js";
+import { isValidServiceUsername, sanitizeUsername, withRandomSuffix } from "../src/domain/username.js";
 import { calculateWalletBalance } from "../src/domain/wallet.js";
 
 describe("domain helpers", () => {
   it("sanitizes usernames", () => {
     expect(sanitizeUsername("@Ha med!*")).toBe("Ha_med_");
     expect(sanitizeUsername("ab")).toMatch(/^user_/);
+  });
+
+  it("validates service usernames strictly", () => {
+    expect(isValidServiceUsername("Hamed_20")).toBe(true);
+    expect(isValidServiceUsername("hamed-vip")).toBe(true);
+    expect(isValidServiceUsername("حامد")).toBe(false);
+    expect(isValidServiceUsername("Ha med")).toBe(false);
   });
 
   it("adds a four digit suffix without growing too long", () => {

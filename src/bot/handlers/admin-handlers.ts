@@ -2,6 +2,7 @@ import { Markup } from "telegraf";
 import type { BotContext } from "../context.js";
 import { prisma } from "../../db.js";
 import { formatDays, formatGb, formatToman } from "../../domain/format.js";
+import { logger } from "../../logger.js";
 import { approvePayment, rejectPayment } from "../../services/order-service.js";
 import { adminMenu } from "../keyboards.js";
 import { isAdmin } from "../membership.js";
@@ -223,7 +224,21 @@ export async function handleApprove(ctx: BotContext, receiptId: string) {
       await sendRenewedServiceToUser(ctx, Number(order.user.telegramId), order.targetService.id);
     }
   } catch (error) {
-    await ctx.reply(error instanceof Error ? error.message : "Taeed payment namovafagh bood.");
+    logger.error({ err: error, receiptId }, "Admin payment approval failed");
+    const receipt = await prisma.paymentReceipt.findUnique({
+      where: { id: receiptId },
+      include: { order: true }
+    });
+    const failureReason = receipt?.order.failureReason;
+    await ctx.reply(
+      [
+        "Taeed payment namovafagh bood.",
+        failureReason ? `Reason: ${failureReason}` : error instanceof Error ? `Reason: ${error.message}` : undefined,
+        "Payment receipt approve shode bashe momkene order failed shode bashe; log Render ro check kon."
+      ]
+        .filter(Boolean)
+        .join("\n")
+    );
   }
 }
 

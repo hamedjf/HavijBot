@@ -79,7 +79,7 @@ export class RemnawaveClient {
       "Creating Remnawave user"
     );
 
-    const response = await this.http.post("/api/users", payload);
+    const response = await this.#safeRequest(() => this.http.post("/api/users", payload), "create user");
     return normalizeUser(response.data);
   }
 
@@ -96,7 +96,7 @@ export class RemnawaveClient {
         return normalizeUser(response.data);
       } catch (error: unknown) {
         if (!isNotFound(error)) {
-          throw error;
+          throw formatAxiosError(error, `get user via ${endpoint}`);
         }
       }
     }
@@ -171,8 +171,16 @@ export class RemnawaveClient {
       expiresAt: nextExpiresAt.toISOString()
     };
 
-    const response = await this.http.patch(`/api/users/${encodeURIComponent(input.userUuid)}`, payload);
+    const response = await this.#safeRequest(() => this.http.patch(`/api/users/${encodeURIComponent(input.userUuid)}`, payload), "extend user");
     return normalizeUser(response.data);
+  }
+
+  async #safeRequest<T>(request: () => Promise<T>, action: string): Promise<T> {
+    try {
+      return await request();
+    } catch (error) {
+      throw formatAxiosError(error, action);
+    }
   }
 }
 
@@ -242,4 +250,35 @@ function firstDate(data: RemnawaveRawUser, keys: string[]): Date | undefined {
 
 function isNotFound(error: unknown): boolean {
   return axios.isAxiosError(error) && error.response?.status === 404;
+}
+
+function summarizeResponseData(data: unknown): string {
+  if (typeof data === "string") {
+    return data.slice(0, 500);
+  }
+  if (!data) {
+    return "no response body";
+  }
+  try {
+    return JSON.stringify(data).slice(0, 500);
+  } catch {
+    return "unserializable response body";
+  }
+}
+
+function formatAxiosError(error: unknown, action: string): Error {
+  if (axios.isAxiosError(error)) {
+    const status = error.response?.status;
+    const responseData = summarizeResponseData(error.response?.data);
+    logger.error(
+      {
+        action: `remnawave.${action}`,
+        status,
+        responseData
+      },
+      "Remnawave request failed"
+    );
+    return new Error(`Remnawave ${action} failed${status ? ` (${status})` : ""}: ${responseData}`);
+  }
+  return error instanceof Error ? error : new Error(String(error));
 }

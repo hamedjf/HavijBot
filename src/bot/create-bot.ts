@@ -1,6 +1,7 @@
 import { Telegraf, session } from "telegraf";
 import type { Message } from "telegraf/types";
 import { config } from "../config.js";
+import { logger } from "../logger.js";
 import type { BotContext } from "./context.js";
 import {
   handleAddCategoryText,
@@ -47,6 +48,36 @@ export function createBot() {
   const bot = new Telegraf<BotContext>(config.BOT_TOKEN);
 
   bot.use(session({ defaultSession: () => ({}) }));
+  bot.use(async (ctx, next) => {
+    logger.info(
+      {
+        updateId: ctx.update.update_id,
+        updateType: ctx.updateType,
+        telegramId: ctx.from?.id,
+        username: ctx.from?.username,
+        chatId: ctx.chat?.id
+      },
+      "Telegram update received"
+    );
+    await next();
+  });
+
+  bot.catch(async (error, ctx) => {
+    logger.error(
+      {
+        err: error,
+        updateId: ctx.update.update_id,
+        updateType: ctx.updateType,
+        telegramId: ctx.from?.id,
+        chatId: ctx.chat?.id
+      },
+      "Telegram handler failed"
+    );
+
+    if (ctx.chat?.type === "private") {
+      await ctx.reply("Bot error dad. Lotfan chand saniye bad tekrar kon ya be admin etela bede.");
+    }
+  });
 
   bot.start(handleStart);
 

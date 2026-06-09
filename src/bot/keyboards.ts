@@ -4,19 +4,17 @@ import { normalizeChannelId } from "./membership.js";
 
 export async function mainMenu(isAdmin = false) {
   const rows = [
-    [Markup.button.callback(await getText("main.buy"), "buy")],
-    [Markup.button.callback(await getText("main.myServices"), "my_services")],
-    [Markup.button.callback(await getText("main.tutorials"), "content:TRAINING"), Markup.button.callback(await getText("main.apps"), "content:SOFTWARE")],
-    [Markup.button.callback(await getText("main.wallet"), "wallet_charge")],
-    [Markup.button.callback(await getText("main.referral"), "referral")],
-    [Markup.button.callback(await getText("main.support"), "support")]
+    [await getText("main.buy"), await getText("main.myServices")],
+    [await getText("main.tutorials"), await getText("main.apps")],
+    [await getText("main.wallet"), await getText("main.referral")],
+    [await getText("main.support")]
   ];
 
   if (isAdmin) {
-    rows.push([Markup.button.callback(await getText("main.admin"), "admin")]);
+    rows.push([await getText("main.admin")]);
   }
 
-  return Markup.inlineKeyboard(rows);
+  return Markup.keyboard(rows).resize();
 }
 
 export async function membershipKeyboard(channelId: string) {
@@ -32,6 +30,8 @@ export async function membershipKeyboard(channelId: string) {
 export function adminMenu() {
   return Markup.inlineKeyboard([
     [Markup.button.callback("Pending payments", "admin:payments")],
+    [Markup.button.callback("Broadcast PM", "admin:broadcast")],
+    [Markup.button.callback("Card number/text", "admin:card_text")],
     [Markup.button.callback("Categories", "admin:categories"), Markup.button.callback("Plans", "admin:plans")],
     [Markup.button.callback("Add category", "admin:add_category"), Markup.button.callback("Add plan", "admin:add_plan")],
     [Markup.button.callback("Add discount", "admin:add_discount")],
@@ -40,4 +40,13 @@ export function adminMenu() {
     [Markup.button.callback("Add amoozesh", "admin:add_content:TRAINING")],
     [Markup.button.callback("Add narm afzar", "admin:add_content:SOFTWARE")]
   ]);
+}
+
+export function userNavKeyboard(backAction?: string) {
+  const rows = [];
+  if (backAction) {
+    rows.push([Markup.button.callback("⬅️ بازگشت", backAction)]);
+  }
+  rows.push([Markup.button.callback("🏠 صفحه اصلی", "nav:main")]);
+  return rows;
 }

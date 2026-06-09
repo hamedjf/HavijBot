@@ -3,6 +3,7 @@ import { config } from "./config.js";
 import { createBot } from "./bot/create-bot.js";
 import { logger } from "./logger.js";
 import { prisma } from "./db.js";
+import { startServiceMonitor } from "./services/service-monitor.js";
 
 const bot = createBot();
 const app = express();
@@ -17,7 +18,9 @@ app.use(bot.webhookCallback("/telegram/webhook"));
 
 const server = app.listen(config.PORT, async () => {
   const webhookUrl = `${config.PUBLIC_WEBHOOK_URL.replace(/\/$/, "")}/telegram/webhook`;
+  await bot.telegram.setMyCommands([]);
   await bot.telegram.setWebhook(webhookUrl);
+  startServiceMonitor(bot.telegram);
   logger.info({ port: config.PORT, webhookUrl }, "HavijBot started");
 });
 
@@ -30,4 +33,3 @@ async function shutdown(signal: string) {
 
 process.once("SIGINT", () => void shutdown("SIGINT"));
 process.once("SIGTERM", () => void shutdown("SIGTERM"));
-

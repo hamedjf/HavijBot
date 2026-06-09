@@ -4,6 +4,7 @@ import { prisma } from "../../db.js";
 import { formatDays, formatGb, formatToman } from "../../domain/format.js";
 import { logger } from "../../logger.js";
 import { approvePayment, rejectPayment } from "../../services/order-service.js";
+import { getCardToCardText, setCardToCardText } from "../../services/settings-service.js";
 import { getTextDefinition, resetText, setText, TEXT_DEFINITIONS } from "../../services/text-service.js";
 import { adminMenu } from "../keyboards.js";
 import { isAdmin } from "../membership.js";
@@ -47,6 +48,65 @@ export async function handlePendingPayments(ctx: BotContext) {
       ])
     );
   }
+}
+
+export async function startBroadcast(ctx: BotContext) {
+  if (!ensureAdmin(ctx)) return;
+  ctx.session = { flow: "admin_broadcast" };
+  await ctx.reply("Matne PM hamegani ro befrest. Bot be hame user haye sabt-shode mifreste.");
+}
+
+export async function handleBroadcastText(ctx: BotContext, text: string) {
+  if (!ensureAdmin(ctx)) return;
+  const users = await prisma.telegramUser.findMany({
+    where: { isBlocked: false },
+    select: { id: true, telegramId: true },
+    orderBy: { createdAt: "asc" }
+  });
+
+  let sent = 0;
+  let failed = 0;
+  for (const user of users) {
+    try {
+      await ctx.telegram.sendMessage(Number(user.telegramId), text);
+      sent += 1;
+      await sleep(35);
+    } catch (error) {
+      failed += 1;
+      logger.warn({ err: error, telegramId: user.telegramId.toString() }, "Broadcast delivery failed");
+      await prisma.telegramUser.update({ where: { id: user.id }, data: { isBlocked: true } }).catch(() => null);
+    }
+  }
+
+  ctx.session = {};
+  await ctx.reply(`Broadcast tamam shod.\nSent: ${sent}\nFailed/blocked: ${failed}`);
+  await handleAdmin(ctx);
+}
+
+export async function handleCardText(ctx: BotContext) {
+  if (!ensureAdmin(ctx)) return;
+  const cardText = await getCardToCardText();
+  await ctx.reply(
+    ["Card-to-card text/current:", "", cardText].join("\n"),
+    Markup.inlineKeyboard([
+      [Markup.button.callback("Edit card text", "admin:card_text_edit")],
+      [Markup.button.callback("Back", "admin")]
+    ])
+  );
+}
+
+export async function startEditCardText(ctx: BotContext) {
+  if (!ensureAdmin(ctx)) return;
+  ctx.session = { flow: "admin_card_text" };
+  await ctx.reply("Matne jadid shomare cart ro befrest.\nMesal:\n6037991234567890\nBe name Hamed");
+}
+
+export async function handleEditCardText(ctx: BotContext, text: string) {
+  if (!ensureAdmin(ctx)) return;
+  await setCardToCardText(text);
+  ctx.session = {};
+  await ctx.reply("Card-to-card text update shod.");
+  await handleCardText(ctx);
 }
 
 export async function handleCategories(ctx: BotContext) {
@@ -661,13 +721,20 @@ function parseSquadUuids(input: string): string[] {
     .filter(Boolean);
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 async function sendServiceToUser(ctx: BotContext, telegramId: number, serviceId: string) {
   const service = await prisma.purchasedService.findUnique({ where: { id: serviceId } });
   if (!service) return;
   const qr = await import("../../remnawave/remnawave-client.js").then(({ remnawaveClient }) =>
     remnawaveClient.getSubscriptionQr(service.remnawaveUserUuid)
   );
-  await ctx.telegram.sendPhoto(telegramId, { source: qr }, { caption: `Username: ${service.username}\nLink: ${service.subscriptionUrl}` });
+  await ctx.telegram.sendPhoto(telegramId, { source: qr }, {
+    caption: `Username: ${service.username}\nLink: ${service.subscriptionUrl}`,
+    reply_markup: Markup.inlineKeyboard([[Markup.button.callback("📋 دریافت دستی کانفیگ‌ها", `configs:${service.id}`)]]).reply_markup
+  });
 }
 
 async function sendRenewedServiceToUser(ctx: BotContext, telegramId: number, serviceId: string) {
@@ -683,6 +750,7 @@ async function sendRenewedServiceToUser(ctx: BotContext, telegramId: number, ser
       `Link: ${service.subscriptionUrl}`,
       `Hajm jadid: ${service.volumeGb} GB`,
       `Rooz baghimande: ${daysLeft}`
-    ].join("\n")
+    ].join("\n"),
+    reply_markup: Markup.inlineKeyboard([[Markup.button.callback("📋 دریافت دستی کانفیگ‌ها", `configs:${service.id}`)]]).reply_markup
   });
 }

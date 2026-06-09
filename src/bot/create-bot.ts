@@ -16,6 +16,8 @@ import {
   handleAddPlanVolume,
   handleAdmin,
   handleApprove,
+  handleBroadcastText,
+  handleCardText,
   handleCategories,
   handleCategoryDetail,
   handleDeleteCategory,
@@ -23,6 +25,7 @@ import {
   handleDeletePlan,
   handleDiscountDetail,
   handleDiscounts,
+  handleEditCardText,
   handleEditTextValue,
   handlePendingPayments,
   handlePlanCategorySelected,
@@ -35,7 +38,9 @@ import {
   handleResetText,
   handleTextDetail,
   handleTexts,
+  startBroadcast,
   startEditText,
+  startEditCardText,
   startAddCategory,
   startAddDiscount,
   startAddContent,
@@ -59,6 +64,7 @@ import {
   handleReferral,
   handleRenewOption,
   handleRenewService,
+  handleServiceConfigs,
   handleServiceDetail,
   handleStart,
   handleSupport,
@@ -66,7 +72,8 @@ import {
   handleWalletAmount,
   handleWalletCharge
 } from "./handlers/user-handlers.js";
-import { getRawMembershipStatus, isAdmin, isChannelMember } from "./membership.js";
+import { getText } from "../services/text-service.js";
+import { isAdmin, isChannelMember } from "./membership.js";
 import { replyJoinRequired, replyMainMenu } from "./replies.js";
 
 export function createBot() {
@@ -106,39 +113,6 @@ export function createBot() {
 
   bot.start(handleStart);
 
-  bot.command("whoami", async (ctx) => {
-    await ctx.reply(
-      [
-        `telegramId=${ctx.from?.id ?? "unknown"}`,
-        `username=${ctx.from?.username ?? "none"}`,
-        `admin=${isAdmin(ctx.from?.id) ? "yes" : "no"}`,
-        `configuredAdmins=${config.ADMIN_IDS.join(",") || "none"}`
-      ].join("\n")
-    );
-  });
-
-  bot.command("admin", handleAdmin);
-  bot.command("debug_membership", async (ctx) => {
-    if (!isAdmin(ctx.from?.id)) {
-      await ctx.reply("Dastresi admin nadari.");
-      return;
-    }
-
-    try {
-      await ctx.reply(await getRawMembershipStatus(ctx));
-    } catch (error) {
-      logger.error({ err: error, mainChannelId: config.MAIN_CHANNEL_ID, telegramId: ctx.from?.id }, "Membership debug failed");
-      await ctx.reply(error instanceof Error ? error.message : "Membership debug failed.");
-    }
-  });
-  bot.command("menu", async (ctx) => {
-    if (!(await isChannelMember(ctx))) {
-      await replyJoinRequired(ctx);
-      return;
-    }
-    await replyMainMenu(ctx);
-  });
-
   bot.action("check_membership", async (ctx) => {
     await ctx.answerCbQuery();
     if (await isChannelMember(ctx)) {
@@ -146,6 +120,11 @@ export function createBot() {
     } else {
       await replyJoinRequired(ctx);
     }
+  });
+  bot.action("nav:main", async (ctx) => {
+    await ctx.answerCbQuery();
+    ctx.session = {};
+    await replyMainMenu(ctx);
   });
 
   bot.action("buy", async (ctx) => {
@@ -194,6 +173,10 @@ export function createBot() {
     await ctx.answerCbQuery();
     await handleServiceDetail(ctx, ctx.match[1]);
   });
+  bot.action(/^configs:(.+)$/, async (ctx) => {
+    await ctx.answerCbQuery();
+    await handleServiceConfigs(ctx, ctx.match[1]);
+  });
   bot.action(/^renew:(.+)$/, async (ctx) => {
     await ctx.answerCbQuery();
     await handleRenewService(ctx, ctx.match[1]);
@@ -226,6 +209,18 @@ export function createBot() {
   bot.action("admin:payments", async (ctx) => {
     await ctx.answerCbQuery();
     await handlePendingPayments(ctx);
+  });
+  bot.action("admin:broadcast", async (ctx) => {
+    await ctx.answerCbQuery();
+    await startBroadcast(ctx);
+  });
+  bot.action("admin:card_text", async (ctx) => {
+    await ctx.answerCbQuery();
+    await handleCardText(ctx);
+  });
+  bot.action("admin:card_text_edit", async (ctx) => {
+    await ctx.answerCbQuery();
+    await startEditCardText(ctx);
   });
   bot.action("admin:categories", async (ctx) => {
     await ctx.answerCbQuery();
@@ -344,6 +339,10 @@ export function createBot() {
 
   bot.on("text", async (ctx) => {
     const text = ctx.message.text.trim();
+    if (await handleMainKeyboardText(ctx, text)) {
+      return;
+    }
+
     switch (ctx.session.flow) {
       case "purchase_username":
         await handleUsernameMessage(ctx, text);
@@ -384,10 +383,41 @@ export function createBot() {
       case "admin_text_value":
         await handleEditTextValue(ctx, text);
         break;
+      case "admin_broadcast":
+        await handleBroadcastText(ctx, text);
+        break;
+      case "admin_card_text":
+        await handleEditCardText(ctx, text);
+        break;
       default:
         await replyMainMenu(ctx);
     }
   });
 
   return bot;
+}
+
+async function handleMainKeyboardText(ctx: BotContext, text: string): Promise<boolean> {
+  const entries: Array<[string, () => Promise<void>]> = [
+    [await getText("main.buy"), async () => handleBuy(ctx)],
+    [await getText("main.myServices"), async () => handleMyServices(ctx)],
+    [await getText("main.tutorials"), async () => handleContent(ctx, "TRAINING")],
+    [await getText("main.apps"), async () => handleContent(ctx, "SOFTWARE")],
+    [await getText("main.wallet"), async () => handleWalletCharge(ctx)],
+    [await getText("main.referral"), async () => handleReferral(ctx)],
+    [await getText("main.support"), async () => handleSupport(ctx)]
+  ];
+
+  if (isAdmin(ctx.from?.id)) {
+    entries.push([await getText("main.admin"), async () => handleAdmin(ctx)]);
+  }
+
+  const matched = entries.find(([label]) => label === text);
+  if (!matched) {
+    return false;
+  }
+
+  ctx.session = {};
+  await matched[1]();
+  return true;
 }

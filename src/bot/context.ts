@@ -16,7 +16,9 @@ export type SessionState = {
     | "admin_plan_squads"
     | "admin_content"
     | "admin_discount"
-    | "admin_text_value";
+    | "admin_text_value"
+    | "admin_broadcast"
+    | "admin_card_text";
   planId?: string;
   orderId?: string;
   contentKind?: "TRAINING" | "SOFTWARE";

@@ -442,7 +442,8 @@ export async function renewService(orderId: string): Promise<Order> {
         data: {
           volumeGb: targetService.volumeGb + order.renewalVolumeGb!,
           expiresAt: nextExpiresAt,
-          subscriptionUrl
+          subscriptionUrl,
+          lowTrafficNotifiedAt: null
         }
       });
       await tx.order.update({

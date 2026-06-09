@@ -18,9 +18,11 @@ import {
   payServiceOrderByWallet,
   submitCardReceipt
 } from "../../services/order-service.js";
+import { getCardToCardText } from "../../services/settings-service.js";
 import { upsertTelegramUser } from "../../services/users.js";
 import { getText } from "../../services/text-service.js";
 import { getWalletBalance } from "../../services/wallet-service.js";
+import { userNavKeyboard } from "../keyboards.js";
 import { isChannelMember } from "../membership.js";
 import { replyJoinRequired, replyMainMenu } from "../replies.js";
 
@@ -49,7 +51,10 @@ export async function handleBuy(ctx: BotContext) {
 
   await ctx.reply(
     await getText("buy.selectCategory"),
-    Markup.inlineKeyboard(categories.map((category) => [Markup.button.callback(category.title, `cat:${category.id}`)]))
+    Markup.inlineKeyboard([
+      ...categories.map((category) => [Markup.button.callback(category.title, `cat:${category.id}`)]),
+      ...userNavKeyboard()
+    ])
   );
 }
 
@@ -69,9 +74,12 @@ export async function handleCategory(ctx: BotContext, categoryId: string) {
   await ctx.reply(
     await getText("buy.selectPlan"),
     Markup.inlineKeyboard(
-      plans.map((plan) => [
-        Markup.button.callback(plan.title, `plan:${plan.id}`)
-      ])
+      [
+        ...plans.map((plan) => [
+          Markup.button.callback(plan.title, `plan:${plan.id}`)
+        ]),
+        ...userNavKeyboard("buy")
+      ]
     )
   );
 }
@@ -80,7 +88,7 @@ export async function handlePlan(ctx: BotContext, planId: string) {
   if (!(await ensureAllowed(ctx))) return;
   ctx.session.flow = "purchase_username";
   ctx.session.planId = planId;
-  await ctx.reply(await getText("buy.usernamePrompt"));
+  await ctx.reply(await getText("buy.usernamePrompt"), Markup.inlineKeyboard(userNavKeyboard("buy")));
 }
 
 export async function handleUsernameMessage(ctx: BotContext, text: string) {
@@ -138,7 +146,7 @@ export async function handleDiscountStart(ctx: BotContext, orderId: string) {
   if (!(await ensureAllowed(ctx))) return;
   ctx.session.flow = "discount_code";
   ctx.session.orderId = orderId;
-  await ctx.reply(await getText("discount.prompt"));
+  await ctx.reply(await getText("discount.prompt"), Markup.inlineKeyboard(userNavKeyboard()));
 }
 
 export async function handleDiscountCode(ctx: BotContext, text: string) {
@@ -183,7 +191,7 @@ export async function handleApplyWallet(ctx: BotContext, orderId: string) {
 export async function handleWalletCharge(ctx: BotContext) {
   if (!(await ensureAllowed(ctx))) return;
   ctx.session.flow = "wallet_amount";
-  await ctx.reply(await getText("wallet.chargePrompt"));
+  await ctx.reply(await getText("wallet.chargePrompt"), Markup.inlineKeyboard(userNavKeyboard()));
 }
 
 export async function handleWalletAmount(ctx: BotContext, text: string) {
@@ -251,7 +259,8 @@ export async function handleReceiptPhoto(ctx: BotContext, fileId: string) {
 }
 
 export async function handleCopyCardNumber(ctx: BotContext) {
-  await ctx.answerCbQuery(extractCardNumber() ?? config.CARD_TO_CARD_TEXT.slice(0, 180), { show_alert: true });
+  const cardText = await getCardToCardText();
+  await ctx.answerCbQuery(extractCardNumber(cardText) ?? cardText.slice(0, 180), { show_alert: true });
 }
 
 export async function handleCopyRialAmount(ctx: BotContext, orderId: string) {
@@ -274,7 +283,10 @@ export async function handleMyServices(ctx: BotContext) {
 
   await ctx.reply(
     await getText("services.listTitle"),
-    Markup.inlineKeyboard(services.map((service) => [Markup.button.callback(service.username, `svc:${service.id}`)]))
+    Markup.inlineKeyboard([
+      ...services.map((service) => [Markup.button.callback(service.username, `svc:${service.id}`)]),
+      ...userNavKeyboard()
+    ])
   );
 }
 
@@ -286,9 +298,22 @@ export async function handleServiceDetail(ctx: BotContext, serviceId: string) {
     return;
   }
 
-  const usage = await remnawaveClient.getUserUsage(service.remnawaveUserUuid);
-  const subscriptionUrl = await remnawaveClient.getSubscriptionUrl(service.remnawaveUserUuid);
-  const qr = await remnawaveClient.getSubscriptionQr(service.remnawaveUserUuid);
+  let usage;
+  let subscriptionUrl;
+  let qr;
+  try {
+    usage = await remnawaveClient.getUserUsage(service.remnawaveUserUuid);
+    subscriptionUrl = await remnawaveClient.getSubscriptionUrl(service.remnawaveUserUuid);
+    qr = await remnawaveClient.getSubscriptionQr(service.remnawaveUserUuid);
+  } catch (error) {
+    if (isMissingRemnawaveUserError(error)) {
+      await prisma.purchasedService.delete({ where: { id: service.id } }).catch(() => null);
+      await ctx.reply("⚠️ این سرویس داخل پنل پیدا نشد و از لیست سرویس‌های شما حذف شد. لطفا برای بررسی بیشتر با پشتیبانی در ارتباط باشید.");
+      await replyMainMenu(ctx);
+      return;
+    }
+    throw error;
+  }
   const daysLeft = Math.max(0, Math.ceil((service.expiresAt.getTime() - Date.now()) / 86_400_000));
   const usedGb = bytesToGb(usage.usedTrafficBytes);
   const totalGb = usage.trafficLimitBytes ? bytesToGb(usage.trafficLimitBytes) : service.volumeGb;
@@ -302,10 +327,13 @@ export async function handleServiceDetail(ctx: BotContext, serviceId: string) {
         `📊 مصرف: ${usedGb} / ${totalGb} GB`,
         `⏳ روز باقی‌مانده: ${daysLeft}`
       ].join("\n"),
-      reply_markup: Markup.inlineKeyboard([[Markup.button.callback("🔄 تمدید سرویس", `renew:${service.id}`)]]).reply_markup
+      reply_markup: Markup.inlineKeyboard([
+        [Markup.button.callback("🔄 تمدید سرویس", `renew:${service.id}`)],
+        [Markup.button.callback("📋 دریافت دستی کانفیگ‌ها", `configs:${service.id}`)],
+        ...userNavKeyboard("my_services")
+      ]).reply_markup
     }
   );
-  await sendSubscriptionConfigs(ctx, service.remnawaveUserUuid, subscriptionUrl);
 }
 
 export async function handleRenewService(ctx: BotContext, serviceId: string) {
@@ -320,12 +348,15 @@ export async function handleRenewService(ctx: BotContext, serviceId: string) {
   await ctx.reply(
     await getText("renew.select"),
     Markup.inlineKeyboard(
-      config.RENEWAL_PLANS.map((option) => [
-        Markup.button.callback(
-          `${formatGb(option.volumeGb)} / ${formatDays(option.durationDays)} - ${formatToman(option.priceToman)}`,
-          `renew_opt:${service.id}:${option.volumeGb}`
-        )
-      ])
+      [
+        ...config.RENEWAL_PLANS.map((option) => [
+          Markup.button.callback(
+            `${formatGb(option.volumeGb)} / ${formatDays(option.durationDays)} - ${formatToman(option.priceToman)}`,
+            `renew_opt:${service.id}:${option.volumeGb}`
+          )
+        ]),
+        ...userNavKeyboard(`svc:${service.id}`)
+      ]
     )
   );
 }
@@ -367,7 +398,10 @@ export async function handleContent(ctx: BotContext, kind: "TRAINING" | "SOFTWAR
 
   await ctx.reply(
     await getText("content.select"),
-    Markup.inlineKeyboard(items.map((item) => [Markup.button.callback(item.title, `content_item:${item.id}`)]))
+    Markup.inlineKeyboard([
+      ...items.map((item) => [Markup.button.callback(item.title, `content_item:${item.id}`)]),
+      ...userNavKeyboard()
+    ])
   );
 }
 
@@ -405,10 +439,13 @@ export async function sendProvisionedService(ctx: BotContext, orderId: string) {
   await ctx.replyWithPhoto(
     { source: qr },
     {
-      caption: [`✅ سرویس شما آماده است.`, `👤 نام کاربری: ${service.username}`, `🔗 لینک: ${service.subscriptionUrl}`].join("\n")
+      caption: [`✅ سرویس شما آماده است.`, `👤 نام کاربری: ${service.username}`, `🔗 لینک ساب: ${service.subscriptionUrl}`].join("\n"),
+      reply_markup: Markup.inlineKeyboard([
+        [Markup.button.callback("📋 دریافت دستی کانفیگ‌ها", `configs:${service.id}`)],
+        ...userNavKeyboard()
+      ]).reply_markup
     }
   );
-  await sendSubscriptionConfigs(ctx, service.remnawaveUserUuid, service.subscriptionUrl);
   await replyMainMenu(ctx);
 }
 
@@ -434,11 +471,25 @@ export async function sendRenewedService(ctx: BotContext, orderId: string) {
         `🔗 لینک: ${service.subscriptionUrl}`,
         `📦 حجم جدید: ${formatGb(service.volumeGb)}`,
         `⏳ روز باقی‌مانده: ${daysLeft}`
-      ].join("\n")
+      ].join("\n"),
+      reply_markup: Markup.inlineKeyboard([
+        [Markup.button.callback("📋 دریافت دستی کانفیگ‌ها", `configs:${service.id}`)],
+        ...userNavKeyboard()
+      ]).reply_markup
     }
   );
-  await sendSubscriptionConfigs(ctx, service.remnawaveUserUuid, service.subscriptionUrl);
   await replyMainMenu(ctx);
+}
+
+export async function handleServiceConfigs(ctx: BotContext, serviceId: string) {
+  if (!(await ensureAllowed(ctx))) return;
+  const user = await upsertTelegramUser(ctx);
+  const service = await prisma.purchasedService.findFirst({ where: { id: serviceId, userId: user.id } });
+  if (!service) {
+    await ctx.reply(await getText("services.notFound"));
+    return;
+  }
+  await sendSubscriptionConfigs(ctx, service.remnawaveUserUuid, service.subscriptionUrl);
 }
 
 type AdminPaymentSummaryInput = {
@@ -493,11 +544,12 @@ async function notifyAdminsInstantPayment(ctx: BotContext, orderId: string, reas
 
 async function getCardPaymentText(amountToman: number) {
   const rial = new Intl.NumberFormat("en-US").format(amountToman * 10);
-  const cardNumber = extractCardNumber() ?? config.CARD_TO_CARD_TEXT;
+  const cardText = await getCardToCardText();
+  const cardNumber = extractCardNumber(cardText) ?? cardText;
   const text = await getText("payment.cardInstruction", {
     amount: formatToman(amountToman),
     rialAmount: `${rial} rial`,
-    cardText: config.CARD_TO_CARD_TEXT,
+    cardText,
     cardNumber
   });
   return [text, "", `Shomare cart: ${cardNumber}`, `Mablagh be rial: ${rial} rial`].join("\n");
@@ -505,11 +557,12 @@ async function getCardPaymentText(amountToman: number) {
 
 async function getCardChargeText(amountToman: number) {
   const rial = new Intl.NumberFormat("en-US").format(amountToman * 10);
-  const cardNumber = extractCardNumber() ?? config.CARD_TO_CARD_TEXT;
+  const cardText = await getCardToCardText();
+  const cardNumber = extractCardNumber(cardText) ?? cardText;
   const text = await getText("wallet.chargeInstruction", {
     amount: formatToman(amountToman),
     rialAmount: `${rial} rial`,
-    cardText: config.CARD_TO_CARD_TEXT,
+    cardText,
     cardNumber
   });
   return [text, "", `Shomare cart: ${cardNumber}`, `Mablagh be rial: ${rial} rial`].join("\n");
@@ -520,12 +573,13 @@ function getCardCopyKeyboard(orderId: string) {
     [
       Markup.button.callback("Copy shomare cart", "copy_card"),
       Markup.button.callback("Copy mablagh be rial", `copy_rial:${orderId}`)
-    ]
+    ],
+    ...userNavKeyboard()
   ]);
 }
 
-function extractCardNumber() {
-  const normalized = config.CARD_TO_CARD_TEXT.replace(/[۰-۹]/g, (digit) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(digit)))
+function extractCardNumber(cardText: string) {
+  const normalized = cardText.replace(/[۰-۹]/g, (digit) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(digit)))
     .replace(/[٠-٩]/g, (digit) => String("٠١٢٣٤٥٦٧٨٩".indexOf(digit)));
   const match = normalized.replace(/[^\d]/g, "").match(/\d{16}/);
   return match?.[0] ?? null;
@@ -583,7 +637,12 @@ async function sendCheckoutOptions(ctx: BotContext, orderId: string) {
       [Markup.button.callback(await getText("checkout.discountButton"), `discount:${orderId}`)],
       [Markup.button.callback(await getText("checkout.walletOffsetButton"), `apply_wallet:${orderId}`)],
       [Markup.button.callback(await getText("checkout.walletPayButton"), `pay_wallet:${orderId}`)],
-      [Markup.button.callback(await getText("checkout.cardButton"), `pay_card:${orderId}`)]
+      [Markup.button.callback(await getText("checkout.cardButton"), `pay_card:${orderId}`)],
+      ...userNavKeyboard()
     ])
   );
+}
+
+function isMissingRemnawaveUserError(error: unknown): boolean {
+  return error instanceof Error && (error.message.includes("peyda nashod") || error.message.includes("(404)"));
 }

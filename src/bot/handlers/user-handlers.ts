@@ -114,7 +114,7 @@ export async function handlePayCard(ctx: BotContext, orderId: string) {
   });
   ctx.session.flow = "awaiting_receipt";
   ctx.session.orderId = orderId;
-  await ctx.reply(await getText("payment.cardInstruction", { amount: formatToman(due), cardText: config.CARD_TO_CARD_TEXT }));
+  await ctx.reply(await getCardPaymentText(due), getCardCopyKeyboard(orderId));
   await ctx.reply(await getText("payment.sendReceipt"));
 }
 
@@ -123,6 +123,7 @@ export async function handlePayWallet(ctx: BotContext, orderId: string) {
 
   try {
     const order = await payServiceOrderByWallet(orderId);
+    await notifyAdminsInstantPayment(ctx, order.id, "Pardakht kamel ba kife pool");
     if (order.type === "SERVICE_RENEWAL") {
       await sendRenewedService(ctx, order.id);
     } else {
@@ -165,6 +166,7 @@ export async function handleApplyWallet(ctx: BotContext, orderId: string) {
     await ctx.reply(`✅ مبلغ ${formatToman(order.walletAppliedToman)} از کیف پول استفاده می‌شود.${due > 0 ? `\nمبلغ باقی‌مانده: ${formatToman(due)}` : ""}`);
     if (due === 0) {
       const paidOrder = await finalizeWalletCoveredOrder(order.id);
+      await notifyAdminsInstantPayment(ctx, paidOrder.id, "Tasvie kamel ba kife pool/takhfif");
       if (paidOrder.type === "SERVICE_RENEWAL") {
         await sendRenewedService(ctx, paidOrder.id);
       } else {
@@ -195,7 +197,7 @@ export async function handleWalletAmount(ctx: BotContext, text: string) {
   const order = await createWalletTopupOrder(user.id, amount);
   ctx.session.flow = "awaiting_receipt";
   ctx.session.orderId = order.id;
-  await ctx.reply(await getText("wallet.chargeInstruction", { amount: formatToman(amount), cardText: config.CARD_TO_CARD_TEXT }));
+  await ctx.reply(await getCardChargeText(amount), getCardCopyKeyboard(order.id));
   await ctx.reply(await getText("payment.sendReceipt"));
 }
 
@@ -212,25 +214,10 @@ export async function handleReceiptPhoto(ctx: BotContext, fileId: string) {
 
   const orderWithDetails = await prisma.order.findUnique({
     where: { id: order.id },
-    include: { user: true, plan: { include: { category: true } }, targetService: true }
+    include: { user: true, plan: { include: { category: true } }, targetService: true, discountCode: true }
   });
 
-  const caption = [
-    "Receipt jadid",
-    `Order: ${order.id}`,
-    `Type: ${order.type}`,
-    `Amount asli: ${formatToman(order.amountToman)}`,
-    orderWithDetails?.discountAmountToman ? `Takhfif: ${formatToman(orderWithDetails.discountAmountToman)}` : undefined,
-    orderWithDetails?.walletAppliedToman ? `Kife pool: ${formatToman(orderWithDetails.walletAppliedToman)}` : undefined,
-    orderWithDetails?.cardAmountToman ? `Card-to-card: ${formatToman(orderWithDetails.cardAmountToman)}` : undefined,
-    `User: ${orderWithDetails?.user.username ? `@${orderWithDetails.user.username}` : orderWithDetails?.user.telegramId.toString()}`,
-    orderWithDetails?.plan ? `Plan: ${orderWithDetails.plan.category.title} / ${orderWithDetails.plan.title}` : undefined,
-    orderWithDetails?.targetService
-      ? `Tamdid: ${orderWithDetails.targetService.username} / ${orderWithDetails.renewalVolumeGb}GB / ${orderWithDetails.renewalDurationDays} rooz`
-      : undefined
-  ]
-    .filter(Boolean)
-    .join("\n");
+  const caption = buildAdminPaymentSummary(orderWithDetails ?? order);
 
   const adminResults = await Promise.allSettled(config.ADMIN_IDS.map((adminId) => ctx.telegram.sendPhoto(adminId, fileId, {
       caption,
@@ -261,6 +248,15 @@ export async function handleReceiptPhoto(ctx: BotContext, fileId: string) {
     await ctx.reply(await getText("payment.receiptSent"));
   }
   await replyMainMenu(ctx);
+}
+
+export async function handleCopyCardNumber(ctx: BotContext) {
+  await ctx.answerCbQuery(extractCardNumber() ?? config.CARD_TO_CARD_TEXT.slice(0, 180), { show_alert: true });
+}
+
+export async function handleCopyRialAmount(ctx: BotContext, orderId: string) {
+  const { due } = await getOrderPayable(orderId);
+  await ctx.answerCbQuery(`${due * 10}`, { show_alert: true });
 }
 
 export async function handleMyServices(ctx: BotContext) {
@@ -309,6 +305,7 @@ export async function handleServiceDetail(ctx: BotContext, serviceId: string) {
       reply_markup: Markup.inlineKeyboard([[Markup.button.callback("🔄 تمدید سرویس", `renew:${service.id}`)]]).reply_markup
     }
   );
+  await sendSubscriptionConfigs(ctx, service.remnawaveUserUuid, subscriptionUrl);
 }
 
 export async function handleRenewService(ctx: BotContext, serviceId: string) {
@@ -411,6 +408,7 @@ export async function sendProvisionedService(ctx: BotContext, orderId: string) {
       caption: [`✅ سرویس شما آماده است.`, `👤 نام کاربری: ${service.username}`, `🔗 لینک: ${service.subscriptionUrl}`].join("\n")
     }
   );
+  await sendSubscriptionConfigs(ctx, service.remnawaveUserUuid, service.subscriptionUrl);
   await replyMainMenu(ctx);
 }
 
@@ -439,7 +437,124 @@ export async function sendRenewedService(ctx: BotContext, orderId: string) {
       ].join("\n")
     }
   );
+  await sendSubscriptionConfigs(ctx, service.remnawaveUserUuid, service.subscriptionUrl);
   await replyMainMenu(ctx);
+}
+
+type AdminPaymentSummaryInput = {
+  id: string;
+  type: string;
+  amountToman: number;
+  discountAmountToman: number;
+  walletAppliedToman: number;
+  cardAmountToman: number | null;
+  renewalVolumeGb: number | null;
+  renewalDurationDays: number | null;
+  user?: { username: string | null; telegramId: bigint };
+  plan?: { title: string; category: { title: string } } | null;
+  targetService?: { username: string } | null;
+  discountCode?: { code: string } | null;
+};
+
+function buildAdminPaymentSummary(order: AdminPaymentSummaryInput) {
+  const userLabel = order.user ? order.user.username ? `@${order.user.username}` : order.user.telegramId.toString() : "unknown";
+  return [
+    "Receipt jadid",
+    `Order: ${order.id}`,
+    `Type: ${order.type}`,
+    `Amount asli: ${formatToman(order.amountToman)}`,
+    `Code takhfif: ${order.discountCode?.code ?? "nadare"}`,
+    `Mablaghe takhfif: ${formatToman(order.discountAmountToman)}`,
+    `Masraf az kife pool: ${formatToman(order.walletAppliedToman)}`,
+    `Mablaghe card-to-card: ${formatToman(order.cardAmountToman ?? 0)}`,
+    `Mablaghe rial baraye variz: ${new Intl.NumberFormat("en-US").format((order.cardAmountToman ?? 0) * 10)} rial`,
+    `User: ${userLabel}`,
+    order.plan ? `Plan: ${order.plan.category.title} / ${order.plan.title}` : undefined,
+    order.targetService ? `Tamdid: ${order.targetService.username} / ${order.renewalVolumeGb}GB / ${order.renewalDurationDays} rooz` : undefined
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+async function notifyAdminsInstantPayment(ctx: BotContext, orderId: string, reason: string) {
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    include: { user: true, plan: { include: { category: true } }, targetService: true, discountCode: true }
+  });
+  if (!order) return;
+
+  const message = [`✅ ${reason}`, buildAdminPaymentSummary(order)].join("\n\n");
+  const results = await Promise.allSettled(config.ADMIN_IDS.map((adminId) => ctx.telegram.sendMessage(adminId, message)));
+  const failedAdminIds = config.ADMIN_IDS.filter((_adminId, index) => results[index]?.status === "rejected");
+  if (failedAdminIds.length > 0) {
+    logger.warn({ orderId, failedAdminIds }, "Instant payment notification to some admins failed");
+  }
+}
+
+async function getCardPaymentText(amountToman: number) {
+  const rial = new Intl.NumberFormat("en-US").format(amountToman * 10);
+  const cardNumber = extractCardNumber() ?? config.CARD_TO_CARD_TEXT;
+  const text = await getText("payment.cardInstruction", {
+    amount: formatToman(amountToman),
+    rialAmount: `${rial} rial`,
+    cardText: config.CARD_TO_CARD_TEXT,
+    cardNumber
+  });
+  return [text, "", `Shomare cart: ${cardNumber}`, `Mablagh be rial: ${rial} rial`].join("\n");
+}
+
+async function getCardChargeText(amountToman: number) {
+  const rial = new Intl.NumberFormat("en-US").format(amountToman * 10);
+  const cardNumber = extractCardNumber() ?? config.CARD_TO_CARD_TEXT;
+  const text = await getText("wallet.chargeInstruction", {
+    amount: formatToman(amountToman),
+    rialAmount: `${rial} rial`,
+    cardText: config.CARD_TO_CARD_TEXT,
+    cardNumber
+  });
+  return [text, "", `Shomare cart: ${cardNumber}`, `Mablagh be rial: ${rial} rial`].join("\n");
+}
+
+function getCardCopyKeyboard(orderId: string) {
+  return Markup.inlineKeyboard([
+    [
+      Markup.button.callback("Copy shomare cart", "copy_card"),
+      Markup.button.callback("Copy mablagh be rial", `copy_rial:${orderId}`)
+    ]
+  ]);
+}
+
+function extractCardNumber() {
+  const normalized = config.CARD_TO_CARD_TEXT.replace(/[۰-۹]/g, (digit) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(digit)))
+    .replace(/[٠-٩]/g, (digit) => String("٠١٢٣٤٥٦٧٨٩".indexOf(digit)));
+  const match = normalized.replace(/[^\d]/g, "").match(/\d{16}/);
+  return match?.[0] ?? null;
+}
+
+async function sendSubscriptionConfigs(ctx: BotContext, usernameOrUuid: string, subscriptionUrl: string) {
+  try {
+    const configs = await remnawaveClient.getSubscriptionConfigs(usernameOrUuid);
+    if (configs.length === 0) {
+      await ctx.reply(`🔗 لینک ساب شما:\n${subscriptionUrl}`);
+      return;
+    }
+
+    const body = [
+      `🔗 لینک ساب شما:\n${subscriptionUrl}`,
+      "",
+      "📋 کانفیگ‌ها:",
+      configs.map((configLine) => `<code>${escapeHtml(configLine)}</code>`).join("\n\n")
+    ].join("\n");
+
+    await ctx.reply(body.slice(0, 3900), { parse_mode: "HTML" });
+  } catch (error) {
+    logger.warn({ err: error, usernameOrUuid }, "Subscription configs could not be fetched");
+    await ctx.reply(`🔗 لینک ساب شما:\n${subscriptionUrl}`);
+  }
+}
+
+function escapeHtml(value: string) {
+  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
 async function ensureAllowed(ctx: BotContext): Promise<boolean> {

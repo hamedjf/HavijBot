@@ -46,6 +46,8 @@ import {
   handleCategory,
   handleContent,
   handleContentItem,
+  handleCopyCardNumber,
+  handleCopyRialAmount,
   handleMyServices,
   handlePayCard,
   handlePayWallet,
@@ -98,7 +100,7 @@ export function createBot() {
     );
 
     if (ctx.chat?.type === "private") {
-      await ctx.reply("Bot error dad. Lotfan chand saniye bad tekrar kon ya be admin etela bede.");
+      await ctx.reply("در حال حاضر بربات در دسترس نیست");
     }
   });
 
@@ -161,6 +163,12 @@ export function createBot() {
   bot.action(/^pay_card:(.+)$/, async (ctx) => {
     await ctx.answerCbQuery();
     await handlePayCard(ctx, ctx.match[1]);
+  });
+  bot.action("copy_card", async (ctx) => {
+    await handleCopyCardNumber(ctx);
+  });
+  bot.action(/^copy_rial:(.+)$/, async (ctx) => {
+    await handleCopyRialAmount(ctx, ctx.match[1]);
   });
   bot.action(/^pay_wallet:(.+)$/, async (ctx) => {
     await ctx.answerCbQuery();

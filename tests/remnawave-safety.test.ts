@@ -6,6 +6,7 @@ describe("Remnawave safety boundary", () => {
     expect(getPublicRemnawaveMethods()).toEqual([
       "createUser",
       "extendUserTrafficAndExpiry",
+      "getSubscriptionConfigs",
       "getSubscriptionQr",
       "getSubscriptionUrl",
       "getUser",

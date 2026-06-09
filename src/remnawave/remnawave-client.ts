@@ -1,5 +1,8 @@
 import axios, { type AxiosInstance } from "axios";
+import { existsSync } from "node:fs";
+import path from "node:path";
 import QRCode from "qrcode";
+import sharp from "sharp";
 import { config } from "../config.js";
 import { logger } from "../logger.js";
 
@@ -136,7 +139,26 @@ export class RemnawaveClient {
 
   async getSubscriptionQr(usernameOrUuid: string): Promise<Buffer> {
     const subscriptionUrl = await this.getSubscriptionUrl(usernameOrUuid);
-    return QRCode.toBuffer(subscriptionUrl, { type: "png", margin: 1, width: 512 });
+    return generateBrandedQr(subscriptionUrl);
+  }
+
+  async getSubscriptionConfigs(usernameOrUuid: string): Promise<string[]> {
+    const subscriptionUrl = await this.getSubscriptionUrl(usernameOrUuid);
+    const response = await this.#safeRequest(
+      () =>
+        axios.get<string>(subscriptionUrl, {
+          timeout: 15_000,
+          responseType: "text",
+          transformResponse: (data) => data
+        }),
+      "get subscription configs"
+    );
+
+    if (typeof response.data !== "string") {
+      return [];
+    }
+
+    return parseSubscriptionConfigLines(response.data);
   }
 
   async extendUserTrafficAndExpiry(input: ExtendUserInput): Promise<RemnawaveUser> {
@@ -188,6 +210,77 @@ function isUuid(value: string): boolean {
 }
 
 export const remnawaveClient = new RemnawaveClient();
+
+async function generateBrandedQr(value: string): Promise<Buffer> {
+  const size = 512;
+  const logoSize = 110;
+  const logoPadding = 16;
+  const logoPath = path.join(process.cwd(), "assets", "havijnet.png");
+  const qr = await QRCode.toBuffer(value, {
+    type: "png",
+    margin: 1,
+    width: size,
+    errorCorrectionLevel: "H",
+    color: {
+      dark: "#111827",
+      light: "#ffffff"
+    }
+  });
+
+  if (!existsSync(logoPath)) {
+    return qr;
+  }
+
+  try {
+    const badgeSize = logoSize + logoPadding * 2;
+    const badgeBackground = Buffer.from(
+      `<svg width="${badgeSize}" height="${badgeSize}" viewBox="0 0 ${badgeSize} ${badgeSize}">
+        <rect x="0" y="0" width="${badgeSize}" height="${badgeSize}" rx="24" fill="#ffffff"/>
+      </svg>`
+    );
+    const badge = await sharp(badgeBackground)
+      .composite([
+        {
+          input: await sharp(logoPath)
+            .resize(logoSize, logoSize, { fit: "contain", background: { r: 255, g: 255, b: 255, alpha: 0 } })
+            .png()
+            .toBuffer(),
+          left: logoPadding,
+          top: logoPadding
+        }
+      ])
+      .png()
+      .toBuffer();
+
+    return sharp(qr)
+      .composite([{ input: badge, left: Math.round((size - badgeSize) / 2), top: Math.round((size - badgeSize) / 2) }])
+      .png()
+      .toBuffer();
+  } catch (error) {
+    logger.warn({ err: error, logoPath }, "Branded QR generation failed; falling back to plain QR");
+    return qr;
+  }
+}
+
+function parseSubscriptionConfigLines(body: string): string[] {
+  const directLines = splitConfigLines(body);
+  if (directLines.some((line) => /^[a-z][a-z0-9+.-]*:\/\//i.test(line))) {
+    return directLines;
+  }
+
+  try {
+    return splitConfigLines(Buffer.from(body.trim(), "base64").toString("utf8"));
+  } catch {
+    return directLines;
+  }
+}
+
+function splitConfigLines(value: string): string[] {
+  return value
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+}
 
 function normalizeUser(raw: unknown): RemnawaveUser {
   const data = unwrapData(raw);

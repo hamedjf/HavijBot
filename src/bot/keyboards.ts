@@ -1,29 +1,30 @@
 import { Markup } from "telegraf";
+import { getText } from "../services/text-service.js";
 import { normalizeChannelId } from "./membership.js";
 
-export function mainMenu(isAdmin = false) {
+export async function mainMenu(isAdmin = false) {
   const rows = [
-    [Markup.button.callback("🛒 خرید سرویس", "buy")],
-    [Markup.button.callback("📦 سرویس‌های من", "my_services")],
-    [Markup.button.callback("📚 آموزش‌ها", "content:TRAINING"), Markup.button.callback("📱 نرم‌افزارها", "content:SOFTWARE")],
-    [Markup.button.callback("💳 شارژ کیف پول", "wallet_charge")],
-    [Markup.button.callback("🎁 لینک دعوت", "referral")],
-    [Markup.button.callback("🧑‍💻 پشتیبانی", "support")]
+    [Markup.button.callback(await getText("main.buy"), "buy")],
+    [Markup.button.callback(await getText("main.myServices"), "my_services")],
+    [Markup.button.callback(await getText("main.tutorials"), "content:TRAINING"), Markup.button.callback(await getText("main.apps"), "content:SOFTWARE")],
+    [Markup.button.callback(await getText("main.wallet"), "wallet_charge")],
+    [Markup.button.callback(await getText("main.referral"), "referral")],
+    [Markup.button.callback(await getText("main.support"), "support")]
   ];
 
   if (isAdmin) {
-    rows.push([Markup.button.callback("⚙️ مدیریت", "admin")]);
+    rows.push([Markup.button.callback(await getText("main.admin"), "admin")]);
   }
 
   return Markup.inlineKeyboard(rows);
 }
 
-export function membershipKeyboard(channelId: string) {
+export async function membershipKeyboard(channelId: string) {
   const normalized = normalizeChannelId(channelId);
   const channelUrl = typeof normalized === "string" && normalized.startsWith("@") ? `https://t.me/${normalized.slice(1)}` : undefined;
   const rows = channelUrl
-    ? [[Markup.button.url("📣 عضویت در کانال", channelUrl)], [Markup.button.callback("✅ عضو شدم", "check_membership")]]
-    : [[Markup.button.callback("✅ بررسی عضویت", "check_membership")]];
+    ? [[Markup.button.url(await getText("membership.joinButton"), channelUrl)], [Markup.button.callback(await getText("membership.checkButton"), "check_membership")]]
+    : [[Markup.button.callback(await getText("membership.checkButton"), "check_membership")]];
 
   return Markup.inlineKeyboard(rows);
 }
@@ -35,6 +36,7 @@ export function adminMenu() {
     [Markup.button.callback("Add category", "admin:add_category"), Markup.button.callback("Add plan", "admin:add_plan")],
     [Markup.button.callback("Add discount", "admin:add_discount")],
     [Markup.button.callback("Discounts", "admin:discounts")],
+    [Markup.button.callback("Texts", "admin:texts")],
     [Markup.button.callback("Add amoozesh", "admin:add_content:TRAINING")],
     [Markup.button.callback("Add narm afzar", "admin:add_content:SOFTWARE")]
   ]);

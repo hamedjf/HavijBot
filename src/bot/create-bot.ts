@@ -23,6 +23,7 @@ import {
   handleDeletePlan,
   handleDiscountDetail,
   handleDiscounts,
+  handleEditTextValue,
   handlePendingPayments,
   handlePlanCategorySelected,
   handlePlanDetail,
@@ -31,6 +32,10 @@ import {
   handleToggleCategory,
   handleToggleDiscount,
   handleTogglePlan,
+  handleResetText,
+  handleTextDetail,
+  handleTexts,
+  startEditText,
   startAddCategory,
   startAddDiscount,
   startAddContent,
@@ -250,6 +255,22 @@ export function createBot() {
     await ctx.answerCbQuery();
     await handleDeleteDiscount(ctx, ctx.match[1]);
   });
+  bot.action("admin:texts", async (ctx) => {
+    await ctx.answerCbQuery();
+    await handleTexts(ctx);
+  });
+  bot.action(/^admin:text:([A-Za-z0-9_.-]+)$/, async (ctx) => {
+    await ctx.answerCbQuery();
+    await handleTextDetail(ctx, ctx.match[1]);
+  });
+  bot.action(/^admin:text_edit:([A-Za-z0-9_.-]+)$/, async (ctx) => {
+    await ctx.answerCbQuery();
+    await startEditText(ctx, ctx.match[1]);
+  });
+  bot.action(/^admin:text_reset:([A-Za-z0-9_.-]+)$/, async (ctx) => {
+    await ctx.answerCbQuery();
+    await handleResetText(ctx, ctx.match[1]);
+  });
   bot.action(/^admin:plan:(.+)$/, async (ctx) => {
     await ctx.answerCbQuery();
     await handlePlanDetail(ctx, ctx.match[1]);
@@ -351,6 +372,9 @@ export function createBot() {
         break;
       case "admin_content":
         await handleAddContentText(ctx, text);
+        break;
+      case "admin_text_value":
+        await handleEditTextValue(ctx, text);
         break;
       default:
         await replyMainMenu(ctx);

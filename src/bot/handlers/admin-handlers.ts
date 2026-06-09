@@ -4,6 +4,7 @@ import { prisma } from "../../db.js";
 import { formatDays, formatGb, formatToman } from "../../domain/format.js";
 import { logger } from "../../logger.js";
 import { approvePayment, rejectPayment } from "../../services/order-service.js";
+import { getTextDefinition, resetText, setText, TEXT_DEFINITIONS } from "../../services/text-service.js";
 import { adminMenu } from "../keyboards.js";
 import { isAdmin } from "../membership.js";
 
@@ -172,6 +173,76 @@ export async function handleDiscounts(ctx: BotContext) {
       [Markup.button.callback("Add discount", "admin:add_discount")]
     ])
   );
+}
+
+export async function handleTexts(ctx: BotContext) {
+  if (!ensureAdmin(ctx)) return;
+  await ctx.reply(
+    "Text haye user-facing:",
+    Markup.inlineKeyboard(TEXT_DEFINITIONS.map((definition) => [Markup.button.callback(definition.title, `admin:text:${definition.key}`)]))
+  );
+}
+
+export async function handleTextDetail(ctx: BotContext, key: string) {
+  if (!ensureAdmin(ctx)) return;
+  const definition = getTextDefinition(key);
+  if (!definition) {
+    await ctx.reply("Text key peyda nashod.");
+    return;
+  }
+  const custom = await prisma.botText.findUnique({ where: { key } });
+  await ctx.reply(
+    [
+      `Key: ${definition.key}`,
+      `Title: ${definition.title}`,
+      "",
+      "Current:",
+      custom?.value ?? definition.fallback,
+      "",
+      custom ? "Mode: custom" : "Mode: default"
+    ].join("\n"),
+    Markup.inlineKeyboard([
+      [Markup.button.callback("Edit", `admin:text_edit:${definition.key}`)],
+      [Markup.button.callback("Reset default", `admin:text_reset:${definition.key}`)],
+      [Markup.button.callback("Back", "admin:texts")]
+    ])
+  );
+}
+
+export async function startEditText(ctx: BotContext, key: string) {
+  if (!ensureAdmin(ctx)) return;
+  const definition = getTextDefinition(key);
+  if (!definition) {
+    await ctx.reply("Text key peyda nashod.");
+    return;
+  }
+  ctx.session = { flow: "admin_text_value", adminTextKey: key };
+  await ctx.reply(`Matn jadid ro baraye "${definition.title}" befrest.\nBaraye line jadid az Enter estefade kon.`);
+}
+
+export async function handleEditTextValue(ctx: BotContext, value: string) {
+  if (!ensureAdmin(ctx)) return;
+  const key = ctx.session.adminTextKey;
+  if (!key || !getTextDefinition(key)) {
+    await ctx.reply("Text key peyda nashod. Dobare az Texts shoroo kon.");
+    ctx.session = {};
+    return;
+  }
+  await setText(key, value);
+  ctx.session = {};
+  await ctx.reply("Text update shod.");
+  await handleTextDetail(ctx, key);
+}
+
+export async function handleResetText(ctx: BotContext, key: string) {
+  if (!ensureAdmin(ctx)) return;
+  if (!getTextDefinition(key)) {
+    await ctx.reply("Text key peyda nashod.");
+    return;
+  }
+  await resetText(key);
+  await ctx.reply("Text reset shod.");
+  await handleTextDetail(ctx, key);
 }
 
 export async function handleDiscountDetail(ctx: BotContext, discountId: string) {

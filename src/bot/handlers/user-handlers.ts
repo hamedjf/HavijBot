@@ -454,16 +454,16 @@ async function ensureAllowed(ctx: BotContext): Promise<boolean> {
 async function sendCheckoutOptions(ctx: BotContext, orderId: string) {
   const { order, due } = await getOrderPayable(orderId);
   const balance = await getWalletBalance(order.userId);
+  const summary = await getText("checkout.summary", {
+    amount: formatToman(order.amountToman),
+    discount: formatToman(order.discountAmountToman),
+    wallet: formatToman(order.walletAppliedToman),
+    due: formatToman(due),
+    balance: formatToman(balance)
+  });
+
   await ctx.reply(
-    [
-      `💵 مبلغ اصلی: ${formatToman(order.amountToman)}`,
-      order.discountAmountToman > 0 ? `🎟️ تخفیف: ${formatToman(order.discountAmountToman)}` : undefined,
-      order.walletAppliedToman > 0 ? `👛 کیف پول: ${formatToman(order.walletAppliedToman)}` : undefined,
-      `✅ مبلغ قابل پرداخت: ${formatToman(due)}`,
-      `👛 موجودی کیف پول: ${formatToman(balance)}`
-    ]
-      .filter(Boolean)
-      .join("\n"),
+    summary,
     Markup.inlineKeyboard([
       [Markup.button.callback(await getText("checkout.discountButton"), `discount:${orderId}`)],
       [Markup.button.callback(await getText("checkout.walletOffsetButton"), `apply_wallet:${orderId}`)],

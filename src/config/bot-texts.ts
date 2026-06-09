@@ -45,4 +45,5 @@ export const BOT_TEXT_DEFINITIONS = [
   ,{ key: "checkout.walletOffsetButton", title: "Checkout wallet offset button", fallback: "👛 کم کردن از کیف پول" }
   ,{ key: "checkout.walletPayButton", title: "Checkout wallet pay button", fallback: "✅ پرداخت کامل با کیف پول" }
   ,{ key: "checkout.cardButton", title: "Checkout card button", fallback: "💳 کارت‌به‌کارت" }
+  ,{ key: "checkout.summary", title: "Checkout summary", fallback: "🧾 خلاصه سفارش\n\n💵 مبلغ سرویس: {{amount}}\n🎟️ تخفیف: {{discount}}\n👛 پرداخت از کیف پول: {{wallet}}\n✅ مبلغ نهایی: {{due}}\n\n💰 موجودی کیف پول: {{balance}}" }
 ] as const;

@@ -4,15 +4,28 @@ import { config } from "../config.js";
 import { logger } from "../logger.js";
 import type { BotContext } from "./context.js";
 import {
-  handleAddCategoryText,
   handleAddContentFile,
   handleAddContentText,
   handleAddDiscountText,
-  handleAddPlanText,
+  handleAddCategorySquad,
+  handleAddCategoryTitle,
+  handleAddPlanDuration,
+  handleAddPlanPrice,
+  handleAddPlanTitle,
+  handleAddPlanVolume,
   handleAdmin,
   handleApprove,
+  handleCategories,
+  handleCategoryDetail,
+  handleDeleteCategory,
+  handleDeletePlan,
   handlePendingPayments,
+  handlePlanCategorySelected,
+  handlePlanDetail,
+  handlePlans,
   handleReject,
+  handleToggleCategory,
+  handleTogglePlan,
   startAddCategory,
   startAddDiscount,
   startAddContent,
@@ -196,6 +209,38 @@ export function createBot() {
     await ctx.answerCbQuery();
     await handlePendingPayments(ctx);
   });
+  bot.action("admin:categories", async (ctx) => {
+    await ctx.answerCbQuery();
+    await handleCategories(ctx);
+  });
+  bot.action(/^admin:category:(.+)$/, async (ctx) => {
+    await ctx.answerCbQuery();
+    await handleCategoryDetail(ctx, ctx.match[1]);
+  });
+  bot.action(/^admin:category_toggle:(.+)$/, async (ctx) => {
+    await ctx.answerCbQuery();
+    await handleToggleCategory(ctx, ctx.match[1]);
+  });
+  bot.action(/^admin:category_delete:(.+)$/, async (ctx) => {
+    await ctx.answerCbQuery();
+    await handleDeleteCategory(ctx, ctx.match[1]);
+  });
+  bot.action("admin:plans", async (ctx) => {
+    await ctx.answerCbQuery();
+    await handlePlans(ctx);
+  });
+  bot.action(/^admin:plan:(.+)$/, async (ctx) => {
+    await ctx.answerCbQuery();
+    await handlePlanDetail(ctx, ctx.match[1]);
+  });
+  bot.action(/^admin:plan_toggle:(.+)$/, async (ctx) => {
+    await ctx.answerCbQuery();
+    await handleTogglePlan(ctx, ctx.match[1]);
+  });
+  bot.action(/^admin:plan_delete:(.+)$/, async (ctx) => {
+    await ctx.answerCbQuery();
+    await handleDeletePlan(ctx, ctx.match[1]);
+  });
   bot.action("admin:add_category", async (ctx) => {
     await ctx.answerCbQuery();
     await startAddCategory(ctx);
@@ -203,6 +248,10 @@ export function createBot() {
   bot.action("admin:add_plan", async (ctx) => {
     await ctx.answerCbQuery();
     await startAddPlan(ctx);
+  });
+  bot.action(/^admin:plan_category:(.+)$/, async (ctx) => {
+    await ctx.answerCbQuery();
+    await handlePlanCategorySelected(ctx, ctx.match[1]);
   });
   bot.action("admin:add_discount", async (ctx) => {
     await ctx.answerCbQuery();
@@ -255,11 +304,23 @@ export function createBot() {
       case "discount_code":
         await handleDiscountCode(ctx, text);
         break;
-      case "admin_category":
-        await handleAddCategoryText(ctx, text);
+      case "admin_category_title":
+        await handleAddCategoryTitle(ctx, text);
         break;
-      case "admin_plan":
-        await handleAddPlanText(ctx, text);
+      case "admin_category_squad":
+        await handleAddCategorySquad(ctx, text);
+        break;
+      case "admin_plan_title":
+        await handleAddPlanTitle(ctx, text);
+        break;
+      case "admin_plan_volume":
+        await handleAddPlanVolume(ctx, text);
+        break;
+      case "admin_plan_duration":
+        await handleAddPlanDuration(ctx, text);
+        break;
+      case "admin_plan_price":
+        await handleAddPlanPrice(ctx, text);
         break;
       case "admin_discount":
         await handleAddDiscountText(ctx, text);

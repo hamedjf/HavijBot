@@ -4,6 +4,7 @@ import { config } from "../../config.js";
 import { bytesToGb, formatDays, formatGb, formatToman } from "../../domain/format.js";
 import { parseReferralPayload } from "../../domain/referral.js";
 import { prisma } from "../../db.js";
+import { logger } from "../../logger.js";
 import { remnawaveClient } from "../../remnawave/remnawave-client.js";
 import {
   applyDiscountCode,
@@ -204,7 +205,6 @@ export async function handleReceiptPhoto(ctx: BotContext, fileId: string) {
 
   const { order, receipt } = await submitCardReceipt(orderId, fileId);
   ctx.session = {};
-  await ctx.reply("Resid baraye admin ersal shod. Bad az taeed, natije behet elam mishe.");
 
   const orderWithDetails = await prisma.order.findUnique({
     where: { id: order.id },
@@ -228,8 +228,7 @@ export async function handleReceiptPhoto(ctx: BotContext, fileId: string) {
     .filter(Boolean)
     .join("\n");
 
-  for (const adminId of config.ADMIN_IDS) {
-    await ctx.telegram.sendPhoto(adminId, fileId, {
+  const adminResults = await Promise.allSettled(config.ADMIN_IDS.map((adminId) => ctx.telegram.sendPhoto(adminId, fileId, {
       caption,
       reply_markup: Markup.inlineKeyboard([
         [
@@ -237,7 +236,25 @@ export async function handleReceiptPhoto(ctx: BotContext, fileId: string) {
           Markup.button.callback("Rad", `admin:reject:${receipt.id}`)
         ]
       ]).reply_markup
-    });
+    })));
+
+  const deliveredCount = adminResults.filter((result) => result.status === "fulfilled").length;
+  const failedAdminIds = config.ADMIN_IDS.filter((_adminId, index) => adminResults[index]?.status === "rejected");
+  if (failedAdminIds.length > 0) {
+    logger.warn(
+      {
+        orderId: order.id,
+        receiptId: receipt.id,
+        failedAdminIds
+      },
+      "Receipt delivery to some admins failed"
+    );
+  }
+
+  if (deliveredCount === 0) {
+    await ctx.reply("Resid sabt shod vali be admin ersal nashod. Lotfan be support etela bede.");
+  } else {
+    await ctx.reply("Resid darja baraye admin ersal shod. Bad az taeed, natije behet elam mishe.");
   }
 }
 

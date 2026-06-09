@@ -1,7 +1,7 @@
 import { Markup } from "telegraf";
 import type { BotContext } from "../context.js";
 import { prisma } from "../../db.js";
-import { formatToman } from "../../domain/format.js";
+import { formatDays, formatGb, formatToman } from "../../domain/format.js";
 import { approvePayment, rejectPayment } from "../../services/order-service.js";
 import { adminMenu } from "../keyboards.js";
 import { isAdmin } from "../membership.js";
@@ -47,6 +47,159 @@ export async function handlePendingPayments(ctx: BotContext) {
   }
 }
 
+export async function handleCategories(ctx: BotContext) {
+  if (!ensureAdmin(ctx)) return;
+  const categories = await prisma.planCategory.findMany({
+    orderBy: { createdAt: "desc" },
+    include: { _count: { select: { plans: true } } }
+  });
+
+  if (categories.length === 0) {
+    await ctx.reply("Category nadari. Az Add category estefade kon.", Markup.inlineKeyboard([[Markup.button.callback("Add category", "admin:add_category")]]));
+    return;
+  }
+
+  await ctx.reply(
+    "Category ha:",
+    Markup.inlineKeyboard([
+      ...categories.map((category) => [
+        Markup.button.callback(
+          `${category.isEnabled ? "ON" : "OFF"} ${category.title} (${category.slug}) - ${category._count.plans} plan`,
+          `admin:category:${category.id}`
+        )
+      ]),
+      [Markup.button.callback("Add category", "admin:add_category")]
+    ])
+  );
+}
+
+export async function handleCategoryDetail(ctx: BotContext, categoryId: string) {
+  if (!ensureAdmin(ctx)) return;
+  const category = await prisma.planCategory.findUnique({
+    where: { id: categoryId },
+    include: { _count: { select: { plans: true } } }
+  });
+  if (!category) {
+    await ctx.reply("Category peyda nashod.");
+    return;
+  }
+
+  await ctx.reply(
+    [
+      `Title: ${category.title}`,
+      `Slug: ${category.slug}`,
+      `Squad: ${category.remnawaveSquadUuid}`,
+      `Status: ${category.isEnabled ? "enabled" : "disabled"}`,
+      `Plans: ${category._count.plans}`
+    ].join("\n"),
+    Markup.inlineKeyboard([
+      [Markup.button.callback(category.isEnabled ? "Disable" : "Enable", `admin:category_toggle:${category.id}`)],
+      [Markup.button.callback("Remove category", `admin:category_delete:${category.id}`)],
+      [Markup.button.callback("Back", "admin:categories")]
+    ])
+  );
+}
+
+export async function handleToggleCategory(ctx: BotContext, categoryId: string) {
+  if (!ensureAdmin(ctx)) return;
+  const category = await prisma.planCategory.findUnique({ where: { id: categoryId } });
+  if (!category) {
+    await ctx.reply("Category peyda nashod.");
+    return;
+  }
+  await prisma.planCategory.update({ where: { id: categoryId }, data: { isEnabled: !category.isEnabled } });
+  await ctx.reply("Category update shod.");
+  await handleCategories(ctx);
+}
+
+export async function handleDeleteCategory(ctx: BotContext, categoryId: string) {
+  if (!ensureAdmin(ctx)) return;
+  const planCount = await prisma.plan.count({ where: { categoryId } });
+  if (planCount > 0) {
+    await ctx.reply("In category plan dare. Aval plan ha ro remove/disable kon.");
+    return;
+  }
+  await prisma.planCategory.delete({ where: { id: categoryId } });
+  await ctx.reply("Category remove shod.");
+  await handleCategories(ctx);
+}
+
+export async function handlePlans(ctx: BotContext) {
+  if (!ensureAdmin(ctx)) return;
+  const plans = await prisma.plan.findMany({
+    orderBy: [{ category: { title: "asc" } }, { volumeGb: "asc" }],
+    include: { category: true }
+  });
+
+  if (plans.length === 0) {
+    await ctx.reply("Plan nadari. Az Add plan estefade kon.", Markup.inlineKeyboard([[Markup.button.callback("Add plan", "admin:add_plan")]]));
+    return;
+  }
+
+  await ctx.reply(
+    "Plan ha:",
+    Markup.inlineKeyboard([
+      ...plans.map((plan) => [
+        Markup.button.callback(
+          `${plan.isEnabled ? "ON" : "OFF"} ${plan.category.title} / ${plan.title} / ${formatGb(plan.volumeGb)} / ${formatToman(plan.priceToman)}`,
+          `admin:plan:${plan.id}`
+        )
+      ]),
+      [Markup.button.callback("Add plan", "admin:add_plan")]
+    ])
+  );
+}
+
+export async function handlePlanDetail(ctx: BotContext, planId: string) {
+  if (!ensureAdmin(ctx)) return;
+  const plan = await prisma.plan.findUnique({ where: { id: planId }, include: { category: true } });
+  if (!plan) {
+    await ctx.reply("Plan peyda nashod.");
+    return;
+  }
+
+  await ctx.reply(
+    [
+      `Category: ${plan.category.title}`,
+      `Title: ${plan.title}`,
+      `Volume: ${formatGb(plan.volumeGb)}`,
+      `Duration: ${formatDays(plan.durationDays)}`,
+      `Price: ${formatToman(plan.priceToman)}`,
+      `Status: ${plan.isEnabled ? "enabled" : "disabled"}`
+    ].join("\n"),
+    Markup.inlineKeyboard([
+      [Markup.button.callback(plan.isEnabled ? "Disable" : "Enable", `admin:plan_toggle:${plan.id}`)],
+      [Markup.button.callback("Remove plan", `admin:plan_delete:${plan.id}`)],
+      [Markup.button.callback("Back", "admin:plans")]
+    ])
+  );
+}
+
+export async function handleTogglePlan(ctx: BotContext, planId: string) {
+  if (!ensureAdmin(ctx)) return;
+  const plan = await prisma.plan.findUnique({ where: { id: planId } });
+  if (!plan) {
+    await ctx.reply("Plan peyda nashod.");
+    return;
+  }
+  await prisma.plan.update({ where: { id: planId }, data: { isEnabled: !plan.isEnabled } });
+  await ctx.reply("Plan update shod.");
+  await handlePlans(ctx);
+}
+
+export async function handleDeletePlan(ctx: BotContext, planId: string) {
+  if (!ensureAdmin(ctx)) return;
+  const orderCount = await prisma.order.count({ where: { planId } });
+  if (orderCount > 0) {
+    await prisma.plan.update({ where: { id: planId }, data: { isEnabled: false } });
+    await ctx.reply("In plan order dare, delete nashod; disable shod.");
+  } else {
+    await prisma.plan.delete({ where: { id: planId } });
+    await ctx.reply("Plan remove shod.");
+  }
+  await handlePlans(ctx);
+}
+
 export async function handleApprove(ctx: BotContext, receiptId: string) {
   if (!ensureAdmin(ctx)) return;
   try {
@@ -86,31 +239,65 @@ export async function handleReject(ctx: BotContext, receiptId: string) {
 
 export async function startAddCategory(ctx: BotContext) {
   if (!ensureAdmin(ctx)) return;
-  ctx.session.flow = "admin_category";
-  await ctx.reply("Format category ro befrest:\ntitle | slug | remnawave_squad_uuid\nMesal: VIP | vip | 00000000-0000-0000-0000-000000000000");
+  ctx.session = { flow: "admin_category_title" };
+  await ctx.reply("Esme category ro befrest. Mesal: VIP");
 }
 
-export async function handleAddCategoryText(ctx: BotContext, text: string) {
+export async function handleAddCategoryTitle(ctx: BotContext, text: string) {
   if (!ensureAdmin(ctx)) return;
-  const [title, slug, remnawaveSquadUuid] = splitParts(text, 3);
-  if (!title || !slug || !remnawaveSquadUuid) {
-    await ctx.reply("Format dorost nist.");
+  const title = text.trim();
+  if (!title) {
+    await ctx.reply("Title khali nabashe.");
     return;
   }
+  ctx.session.adminCategoryTitle = title;
+  ctx.session.flow = "admin_category_squad";
+  await ctx.reply("Remnawave squad UUID ro befrest.");
+}
 
+export async function handleAddCategorySquad(ctx: BotContext, text: string) {
+  if (!ensureAdmin(ctx)) return;
+  const title = ctx.session.adminCategoryTitle;
+  const remnawaveSquadUuid = text.trim();
+  if (!title || !remnawaveSquadUuid) {
+    await ctx.reply("Data category kamel nist. Dobare Add category ro bezan.");
+    ctx.session = {};
+    return;
+  }
+  const slug = slugify(title);
   await prisma.planCategory.upsert({
     where: { slug },
     update: { title, remnawaveSquadUuid, isEnabled: true },
     create: { title, slug, remnawaveSquadUuid }
   });
   ctx.session = {};
-  await ctx.reply("Category sabt shod.");
+  await ctx.reply(`Category sabt shod: ${title}`);
+  await handleCategories(ctx);
 }
 
 export async function startAddPlan(ctx: BotContext) {
   if (!ensureAdmin(ctx)) return;
-  ctx.session.flow = "admin_plan";
-  await ctx.reply("Format plan ro befrest:\ncategory_slug | title | volume_gb | duration_days | price_toman\nMesal: vip | 20GB 1M | 20 | 30 | 250000");
+  const categories = await prisma.planCategory.findMany({ where: { isEnabled: true }, orderBy: { title: "asc" } });
+  if (categories.length === 0) {
+    await ctx.reply("Aval yek category besaz.");
+    return;
+  }
+  ctx.session = {};
+  await ctx.reply(
+    "Category plan ro entekhab kon:",
+    Markup.inlineKeyboard(categories.map((category) => [Markup.button.callback(category.title, `admin:plan_category:${category.id}`)]))
+  );
+}
+
+export async function handlePlanCategorySelected(ctx: BotContext, categoryId: string) {
+  if (!ensureAdmin(ctx)) return;
+  const category = await prisma.planCategory.findUnique({ where: { id: categoryId } });
+  if (!category) {
+    await ctx.reply("Category peyda nashod.");
+    return;
+  }
+  ctx.session = { flow: "admin_plan_title", adminPlanCategoryId: categoryId };
+  await ctx.reply(`Category: ${category.title}\nEsme plan ro befrest. Mesal: VIP 20GB 1M`);
 }
 
 export async function startAddDiscount(ctx: BotContext) {
@@ -160,24 +347,61 @@ export async function handleAddDiscountText(ctx: BotContext, text: string) {
   await ctx.reply("Discount code sabt shod.");
 }
 
-export async function handleAddPlanText(ctx: BotContext, text: string) {
+export async function handleAddPlanTitle(ctx: BotContext, text: string) {
   if (!ensureAdmin(ctx)) return;
-  const [categorySlug, title, volumeGbRaw, durationDaysRaw, priceRaw] = splitParts(text, 5);
-  const volumeGb = Number(volumeGbRaw);
-  const durationDays = Number(durationDaysRaw);
-  const priceToman = Number(priceRaw);
-  const category = await prisma.planCategory.findUnique({ where: { slug: categorySlug } });
-
-  if (!category || !title || !Number.isSafeInteger(volumeGb) || !Number.isSafeInteger(durationDays) || !Number.isSafeInteger(priceToman)) {
-    await ctx.reply("Format ya category dorost nist.");
+  const title = text.trim();
+  if (!ctx.session.adminPlanCategoryId || !title) {
+    await ctx.reply("Data plan kamel nist. Dobare Add plan ro bezan.");
+    ctx.session = {};
     return;
   }
+  ctx.session.adminPlanTitle = title;
+  ctx.session.flow = "admin_plan_volume";
+  await ctx.reply("Hajm plan ro be GB befrest. Mesal: 20");
+}
 
+export async function handleAddPlanVolume(ctx: BotContext, text: string) {
+  if (!ensureAdmin(ctx)) return;
+  const volumeGb = Number(text.replace(/[^\d]/g, ""));
+  if (!Number.isSafeInteger(volumeGb) || volumeGb <= 0) {
+    await ctx.reply("Hajm dorost nist. Mesal: 20");
+    return;
+  }
+  ctx.session.adminPlanVolumeGb = volumeGb;
+  ctx.session.flow = "admin_plan_duration";
+  await ctx.reply("Moddat plan ro be rooz befrest. Mesal: 30");
+}
+
+export async function handleAddPlanDuration(ctx: BotContext, text: string) {
+  if (!ensureAdmin(ctx)) return;
+  const durationDays = Number(text.replace(/[^\d]/g, ""));
+  if (!Number.isSafeInteger(durationDays) || durationDays <= 0) {
+    await ctx.reply("Moddat dorost nist. Mesal: 30");
+    return;
+  }
+  ctx.session.adminPlanDurationDays = durationDays;
+  ctx.session.flow = "admin_plan_price";
+  await ctx.reply("Gheymat plan ro be toman befrest. Mesal: 250000");
+}
+
+export async function handleAddPlanPrice(ctx: BotContext, text: string) {
+  if (!ensureAdmin(ctx)) return;
+  const priceToman = Number(text.replace(/[^\d]/g, ""));
+  const categoryId = ctx.session.adminPlanCategoryId;
+  const title = ctx.session.adminPlanTitle;
+  const volumeGb = ctx.session.adminPlanVolumeGb;
+  const durationDays = ctx.session.adminPlanDurationDays;
+  if (!categoryId || !title || !volumeGb || !durationDays || !Number.isSafeInteger(priceToman) || priceToman <= 0) {
+    await ctx.reply("Data plan kamel nist. Dobare Add plan ro bezan.");
+    ctx.session = {};
+    return;
+  }
   await prisma.plan.create({
-    data: { categoryId: category.id, title, volumeGb, durationDays, priceToman }
+    data: { categoryId, title, volumeGb, durationDays, priceToman }
   });
   ctx.session = {};
-  await ctx.reply("Plan sabt shod.");
+  await ctx.reply(`Plan sabt shod: ${title} / ${formatGb(volumeGb)} / ${formatToman(priceToman)}`);
+  await handlePlans(ctx);
 }
 
 export async function startAddContent(ctx: BotContext, kind: "TRAINING" | "SOFTWARE") {
@@ -240,6 +464,15 @@ function splitParts(text: string, max: number): string[] {
   return text
     .split("|", max)
     .map((part) => part.trim());
+}
+
+function slugify(title: string): string {
+  const slug = title
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return slug || `category-${Date.now()}`;
 }
 
 async function sendServiceToUser(ctx: BotContext, telegramId: number, serviceId: string) {

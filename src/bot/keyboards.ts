@@ -31,8 +31,8 @@ export function membershipKeyboard(channelId: string) {
 export function adminMenu() {
   return Markup.inlineKeyboard([
     [Markup.button.callback("Pending payments", "admin:payments")],
-    [Markup.button.callback("Add category", "admin:add_category")],
-    [Markup.button.callback("Add plan", "admin:add_plan")],
+    [Markup.button.callback("Categories", "admin:categories"), Markup.button.callback("Plans", "admin:plans")],
+    [Markup.button.callback("Add category", "admin:add_category"), Markup.button.callback("Add plan", "admin:add_plan")],
     [Markup.button.callback("Add discount", "admin:add_discount")],
     [Markup.button.callback("Add amoozesh", "admin:add_content:TRAINING")],
     [Markup.button.callback("Add narm afzar", "admin:add_content:SOFTWARE")]

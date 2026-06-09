@@ -22,4 +22,27 @@ export const BOT_TEXT_DEFINITIONS = [
   { key: "services.empty", title: "No services", fallback: "📭 هنوز سرویس فعالی ندارید." },
   { key: "services.listTitle", title: "Services list title", fallback: "📦 سرویس‌های شما:" },
   { key: "support.message", title: "Support message prefix", fallback: "🧑‍💻 پشتیبانی:" }
+  ,{ key: "payment.cardZero", title: "Card payment zero amount", fallback: "✅ مبلغ کارت‌به‌کارت صفر است. پرداخت را با کیف پول یا تخفیف ادامه دهید." }
+  ,{ key: "payment.cardInstruction", title: "Card payment instruction", fallback: "💳 لطفا مبلغ {{amount}} را کارت‌به‌کارت کنید:\n\n{{cardText}}" }
+  ,{ key: "payment.sendReceipt", title: "Send receipt prompt", fallback: "📸 بعد از پرداخت، اسکرین‌شات رسید را همینجا ارسال کنید." }
+  ,{ key: "payment.noPending", title: "No pending payment", fallback: "❌ پرداخت در انتظار پیدا نشد. اول از منوی خرید یا شارژ شروع کنید." }
+  ,{ key: "wallet.chargePrompt", title: "Wallet charge amount prompt", fallback: "💳 مبلغ شارژ کیف پول را به تومان ارسال کنید.\nمثال: 200000" }
+  ,{ key: "wallet.invalidAmount", title: "Wallet invalid amount", fallback: "❌ مبلغ درست نیست.\nمثال: 200000" }
+  ,{ key: "wallet.chargeInstruction", title: "Wallet charge card instruction", fallback: "💳 برای شارژ {{amount}} کارت‌به‌کارت کنید:\n\n{{cardText}}" }
+  ,{ key: "discount.prompt", title: "Discount code prompt", fallback: "🎟️ کد تخفیف را ارسال کنید." }
+  ,{ key: "discount.orderMissing", title: "Discount order missing", fallback: "❌ سفارش پیدا نشد. دوباره خرید را شروع کنید." }
+  ,{ key: "discount.applied", title: "Discount applied", fallback: "✅ کد تخفیف اعمال شد.\nمبلغ تخفیف: {{amount}}" }
+  ,{ key: "services.notFound", title: "Service not found", fallback: "❌ سرویس پیدا نشد." }
+  ,{ key: "renew.notFound", title: "Renew service not found", fallback: "❌ سرویس برای تمدید پیدا نشد." }
+  ,{ key: "renew.select", title: "Renew select option", fallback: "🔄 حجم تمدید را انتخاب کنید.\nبه هر گزینه زمان هم اضافه می‌شود:" }
+  ,{ key: "renew.optionNotFound", title: "Renew option not found", fallback: "❌ گزینه تمدید پیدا نشد." }
+  ,{ key: "renew.created", title: "Renew order created", fallback: "✅ تمدید {{volume}} + {{days}} ثبت شد." }
+  ,{ key: "referral.message", title: "Referral message", fallback: "🎁 لینک دعوت شما:\n{{link}}\n💰 پاداش هر دعوت: {{reward}}\n👛 موجودی شما: {{balance}}" }
+  ,{ key: "content.empty", title: "No content", fallback: "📭 هنوز آیتمی ثبت نشده است." }
+  ,{ key: "content.select", title: "Select content", fallback: "👇 یکی را انتخاب کنید:" }
+  ,{ key: "content.notFound", title: "Content not found", fallback: "❌ آیتم پیدا نشد." }
+  ,{ key: "checkout.discountButton", title: "Checkout discount button", fallback: "🎟️ کد تخفیف دارم" }
+  ,{ key: "checkout.walletOffsetButton", title: "Checkout wallet offset button", fallback: "👛 کم کردن از کیف پول" }
+  ,{ key: "checkout.walletPayButton", title: "Checkout wallet pay button", fallback: "✅ پرداخت کامل با کیف پول" }
+  ,{ key: "checkout.cardButton", title: "Checkout card button", fallback: "💳 کارت‌به‌کارت" }
 ] as const;

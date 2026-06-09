@@ -19,6 +19,7 @@ import {
   submitCardReceipt
 } from "../../services/order-service.js";
 import { upsertTelegramUser } from "../../services/users.js";
+import { getText } from "../../services/text-service.js";
 import { getWalletBalance } from "../../services/wallet-service.js";
 import { isChannelMember } from "../membership.js";
 import { replyJoinRequired, replyMainMenu } from "../replies.js";
@@ -42,12 +43,12 @@ export async function handleBuy(ctx: BotContext) {
   });
 
   if (categories.length === 0) {
-    await ctx.reply("⏳ فعلا پلن فعالی برای خرید وجود ندارد.");
+    await ctx.reply(await getText("buy.noPlans"));
     return;
   }
 
   await ctx.reply(
-    "🛍️ نوع سرویس را انتخاب کنید:",
+    await getText("buy.selectCategory"),
     Markup.inlineKeyboard(categories.map((category) => [Markup.button.callback(category.title, `cat:${category.id}`)]))
   );
 }
@@ -61,12 +62,12 @@ export async function handleCategory(ctx: BotContext, categoryId: string) {
   });
 
   if (plans.length === 0) {
-    await ctx.reply("⏳ برای این دسته‌بندی فعلا پلن فعالی وجود ندارد.");
+    await ctx.reply(await getText("buy.noCategoryPlans"));
     return;
   }
 
   await ctx.reply(
-    "📋 پلن مورد نظر را انتخاب کنید:",
+    await getText("buy.selectPlan"),
     Markup.inlineKeyboard(
       plans.map((plan) => [
         Markup.button.callback(plan.title, `plan:${plan.id}`)
@@ -79,13 +80,13 @@ export async function handlePlan(ctx: BotContext, planId: string) {
   if (!(await ensureAllowed(ctx))) return;
   ctx.session.flow = "purchase_username";
   ctx.session.planId = planId;
-  await ctx.reply("👤 نام کاربری سرویس را ارسال کنید.\n\nقانون: Username can only contain letters, numbers, underscores and dashes\nمثال: Hamed_20");
+  await ctx.reply(await getText("buy.usernamePrompt"));
 }
 
 export async function handleUsernameMessage(ctx: BotContext, text: string) {
   const user = await upsertTelegramUser(ctx);
   if (!isValidServiceUsername(text)) {
-    await ctx.reply("❌ نام کاربری نامعتبر است.\nUsername can only contain letters, numbers, underscores and dashes\nحداقل ۳ و حداکثر ۲۸ کاراکتر.");
+    await ctx.reply(await getText("buy.invalidUsername"));
     return;
   }
   if (!ctx.session.planId) {
@@ -104,7 +105,7 @@ export async function handlePayCard(ctx: BotContext, orderId: string) {
   if (!(await ensureAllowed(ctx))) return;
   const { due } = await getOrderPayable(orderId);
   if (due <= 0) {
-    await ctx.reply("✅ مبلغ کارت‌به‌کارت صفر است. پرداخت را با کیف پول یا تخفیف ادامه دهید.");
+    await ctx.reply(await getText("payment.cardZero"));
     return;
   }
   await prisma.order.update({
@@ -113,8 +114,8 @@ export async function handlePayCard(ctx: BotContext, orderId: string) {
   });
   ctx.session.flow = "awaiting_receipt";
   ctx.session.orderId = orderId;
-  await ctx.reply(`💳 لطفا مبلغ ${formatToman(due)} را کارت‌به‌کارت کنید:\n\n${config.CARD_TO_CARD_TEXT}`);
-  await ctx.reply("📸 بعد از پرداخت، اسکرین‌شات رسید را همینجا ارسال کنید.");
+  await ctx.reply(await getText("payment.cardInstruction", { amount: formatToman(due), cardText: config.CARD_TO_CARD_TEXT }));
+  await ctx.reply(await getText("payment.sendReceipt"));
 }
 
 export async function handlePayWallet(ctx: BotContext, orderId: string) {
@@ -136,12 +137,12 @@ export async function handleDiscountStart(ctx: BotContext, orderId: string) {
   if (!(await ensureAllowed(ctx))) return;
   ctx.session.flow = "discount_code";
   ctx.session.orderId = orderId;
-  await ctx.reply("🎟️ کد تخفیف را ارسال کنید.");
+  await ctx.reply(await getText("discount.prompt"));
 }
 
 export async function handleDiscountCode(ctx: BotContext, text: string) {
   if (!ctx.session.orderId) {
-    await ctx.reply("❌ سفارش پیدا نشد. دوباره خرید را شروع کنید.");
+    await ctx.reply(await getText("discount.orderMissing"));
     ctx.session = {};
     return;
   }
@@ -149,7 +150,7 @@ export async function handleDiscountCode(ctx: BotContext, text: string) {
   try {
     const order = await applyDiscountCode(ctx.session.orderId, text);
     ctx.session.flow = undefined;
-    await ctx.reply(`✅ کد تخفیف اعمال شد.\nمبلغ تخفیف: ${formatToman(order.discountAmountToman)}`);
+    await ctx.reply(await getText("discount.applied", { amount: formatToman(order.discountAmountToman) }));
     await sendCheckoutOptions(ctx, order.id);
   } catch (error) {
     await ctx.reply(error instanceof Error ? `❌ ${error.message}` : "❌ کد تخفیف اعمال نشد.");
@@ -180,28 +181,28 @@ export async function handleApplyWallet(ctx: BotContext, orderId: string) {
 export async function handleWalletCharge(ctx: BotContext) {
   if (!(await ensureAllowed(ctx))) return;
   ctx.session.flow = "wallet_amount";
-  await ctx.reply("💳 مبلغ شارژ کیف پول را به تومان ارسال کنید.\nمثال: 200000");
+  await ctx.reply(await getText("wallet.chargePrompt"));
 }
 
 export async function handleWalletAmount(ctx: BotContext, text: string) {
   const user = await upsertTelegramUser(ctx);
   const amount = Number(text.replace(/[^\d]/g, ""));
   if (!Number.isSafeInteger(amount) || amount < 1000) {
-    await ctx.reply("❌ مبلغ درست نیست.\nمثال: 200000");
+    await ctx.reply(await getText("wallet.invalidAmount"));
     return;
   }
 
   const order = await createWalletTopupOrder(user.id, amount);
   ctx.session.flow = "awaiting_receipt";
   ctx.session.orderId = order.id;
-  await ctx.reply(`💳 برای شارژ ${formatToman(amount)} کارت‌به‌کارت کنید:\n\n${config.CARD_TO_CARD_TEXT}`);
-  await ctx.reply("📸 بعد از پرداخت، اسکرین‌شات رسید را ارسال کنید.");
+  await ctx.reply(await getText("wallet.chargeInstruction", { amount: formatToman(amount), cardText: config.CARD_TO_CARD_TEXT }));
+  await ctx.reply(await getText("payment.sendReceipt"));
 }
 
 export async function handleReceiptPhoto(ctx: BotContext, fileId: string) {
   const orderId = ctx.session.orderId;
   if (!orderId || ctx.session.flow !== "awaiting_receipt") {
-    await ctx.reply("❌ پرداخت در انتظار پیدا نشد. اول از منوی خرید یا شارژ شروع کنید.");
+    await ctx.reply(await getText("payment.noPending"));
     await replyMainMenu(ctx);
     return;
   }
@@ -255,9 +256,9 @@ export async function handleReceiptPhoto(ctx: BotContext, fileId: string) {
   }
 
   if (deliveredCount === 0) {
-    await ctx.reply("⚠️ رسید ثبت شد اما برای ادمین ارسال نشد. لطفا به پشتیبانی اطلاع دهید.");
+    await ctx.reply(await getText("payment.receiptNotSent"));
   } else {
-    await ctx.reply("✅ رسید شما بلافاصله برای ادمین ارسال شد.\nبعد از تایید، نتیجه به شما اعلام می‌شود.");
+    await ctx.reply(await getText("payment.receiptSent"));
   }
   await replyMainMenu(ctx);
 }
@@ -271,12 +272,12 @@ export async function handleMyServices(ctx: BotContext) {
   });
 
   if (services.length === 0) {
-    await ctx.reply("📭 هنوز سرویس فعالی ندارید.");
+    await ctx.reply(await getText("services.empty"));
     return;
   }
 
   await ctx.reply(
-    "📦 سرویس‌های شما:",
+    await getText("services.listTitle"),
     Markup.inlineKeyboard(services.map((service) => [Markup.button.callback(service.username, `svc:${service.id}`)]))
   );
 }
@@ -285,7 +286,7 @@ export async function handleServiceDetail(ctx: BotContext, serviceId: string) {
   if (!(await ensureAllowed(ctx))) return;
   const service = await prisma.purchasedService.findUnique({ where: { id: serviceId } });
   if (!service) {
-    await ctx.reply("❌ سرویس پیدا نشد.");
+    await ctx.reply(await getText("services.notFound"));
     return;
   }
 
@@ -315,12 +316,12 @@ export async function handleRenewService(ctx: BotContext, serviceId: string) {
   const user = await upsertTelegramUser(ctx);
   const service = await prisma.purchasedService.findFirst({ where: { id: serviceId, userId: user.id } });
   if (!service) {
-    await ctx.reply("❌ سرویس برای تمدید پیدا نشد.");
+    await ctx.reply(await getText("renew.notFound"));
     return;
   }
 
   await ctx.reply(
-    "🔄 حجم تمدید را انتخاب کنید.\nبه هر گزینه زمان هم اضافه می‌شود:",
+    await getText("renew.select"),
     Markup.inlineKeyboard(
       config.RENEWAL_PLANS.map((option) => [
         Markup.button.callback(
@@ -337,13 +338,13 @@ export async function handleRenewOption(ctx: BotContext, serviceId: string, volu
   const user = await upsertTelegramUser(ctx);
   const option = config.RENEWAL_PLANS.find((item) => item.volumeGb === volumeGb);
   if (!option) {
-    await ctx.reply("❌ گزینه تمدید پیدا نشد.");
+    await ctx.reply(await getText("renew.optionNotFound"));
     return;
   }
 
   const order = await createRenewalOrder(user.id, serviceId, option.volumeGb, option.durationDays, option.priceToman);
   ctx.session.orderId = order.id;
-  await ctx.reply(`✅ تمدید ${formatGb(option.volumeGb)} + ${formatDays(option.durationDays)} ثبت شد.`);
+  await ctx.reply(await getText("renew.created", { volume: formatGb(option.volumeGb), days: formatDays(option.durationDays) }));
   await sendCheckoutOptions(ctx, order.id);
 }
 
@@ -352,7 +353,7 @@ export async function handleReferral(ctx: BotContext) {
   const botInfo = await ctx.telegram.getMe();
   const link = `https://t.me/${botInfo.username}?start=ref_${user.referralCode}`;
   const balance = await getWalletBalance(user.id);
-  await ctx.reply([`🎁 لینک دعوت شما:`, link, `💰 پاداش هر دعوت: ${formatToman(config.REFERRAL_REWARD_TOMAN)}`, `👛 موجودی شما: ${formatToman(balance)}`].join("\n"));
+  await ctx.reply(await getText("referral.message", { link, reward: formatToman(config.REFERRAL_REWARD_TOMAN), balance: formatToman(balance) }));
 }
 
 export async function handleContent(ctx: BotContext, kind: "TRAINING" | "SOFTWARE") {
@@ -363,12 +364,12 @@ export async function handleContent(ctx: BotContext, kind: "TRAINING" | "SOFTWAR
   });
 
   if (items.length === 0) {
-    await ctx.reply("📭 هنوز آیتمی ثبت نشده است.");
+    await ctx.reply(await getText("content.empty"));
     return;
   }
 
   await ctx.reply(
-    "👇 یکی را انتخاب کنید:",
+    await getText("content.select"),
     Markup.inlineKeyboard(items.map((item) => [Markup.button.callback(item.title, `content_item:${item.id}`)]))
   );
 }
@@ -377,7 +378,7 @@ export async function handleContentItem(ctx: BotContext, itemId: string) {
   if (!(await ensureAllowed(ctx))) return;
   const item = await prisma.adminContent.findUnique({ where: { id: itemId } });
   if (!item || !item.isEnabled) {
-    await ctx.reply("❌ آیتم پیدا نشد.");
+    await ctx.reply(await getText("content.notFound"));
     return;
   }
 
@@ -392,7 +393,7 @@ export async function handleContentItem(ctx: BotContext, itemId: string) {
 }
 
 export async function handleSupport(ctx: BotContext) {
-  await ctx.reply(`🧑‍💻 پشتیبانی: ${config.SUPPORT_USERNAME}`);
+  await ctx.reply(`${await getText("support.message")} ${config.SUPPORT_USERNAME}`);
   await replyMainMenu(ctx);
 }
 
@@ -464,10 +465,10 @@ async function sendCheckoutOptions(ctx: BotContext, orderId: string) {
       .filter(Boolean)
       .join("\n"),
     Markup.inlineKeyboard([
-      [Markup.button.callback("🎟️ کد تخفیف دارم", `discount:${orderId}`)],
-      [Markup.button.callback("👛 کم کردن از کیف پول", `apply_wallet:${orderId}`)],
-      [Markup.button.callback("✅ پرداخت کامل با کیف پول", `pay_wallet:${orderId}`)],
-      [Markup.button.callback("💳 کارت‌به‌کارت", `pay_card:${orderId}`)]
+      [Markup.button.callback(await getText("checkout.discountButton"), `discount:${orderId}`)],
+      [Markup.button.callback(await getText("checkout.walletOffsetButton"), `apply_wallet:${orderId}`)],
+      [Markup.button.callback(await getText("checkout.walletPayButton"), `pay_wallet:${orderId}`)],
+      [Markup.button.callback(await getText("checkout.cardButton"), `pay_card:${orderId}`)]
     ])
   );
 }

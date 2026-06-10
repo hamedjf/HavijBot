@@ -26,6 +26,8 @@ import {
   handleDiscountDetail,
   handleDiscounts,
   handleEditCardText,
+  handleEditCategoryText,
+  handleEditPlanText,
   handleEditTextValue,
   handlePendingPayments,
   handlePlanCategorySelected,
@@ -39,6 +41,8 @@ import {
   handleTextDetail,
   handleTexts,
   startBroadcast,
+  startEditCategory,
+  startEditPlan,
   startEditText,
   startEditCardText,
   startAddCategory,
@@ -51,8 +55,6 @@ import {
   handleCategory,
   handleContent,
   handleContentItem,
-  handleCopyCardNumber,
-  handleCopyRialAmount,
   handleMyServices,
   handlePayCard,
   handleApplyWallet,
@@ -61,6 +63,7 @@ import {
   handlePlan,
   handleReceiptPhoto,
   handleReferral,
+  handleRenewPlan,
   handleRenewService,
   handleServiceConfigs,
   handleServiceDetail,
@@ -142,12 +145,6 @@ export function createBot() {
     await ctx.answerCbQuery();
     await handlePayCard(ctx, ctx.match[1]);
   });
-  bot.action("copy_card", async (ctx) => {
-    await handleCopyCardNumber(ctx);
-  });
-  bot.action(/^copy_rial:(.+)$/, async (ctx) => {
-    await handleCopyRialAmount(ctx, ctx.match[1]);
-  });
   bot.action(/^apply_wallet:(.+)$/, async (ctx) => {
     await ctx.answerCbQuery();
     await handleApplyWallet(ctx, ctx.match[1]);
@@ -179,6 +176,10 @@ export function createBot() {
   bot.action(/^renew:(.+)$/, async (ctx) => {
     await ctx.answerCbQuery();
     await handleRenewService(ctx, ctx.match[1]);
+  });
+  bot.action(/^renew_plan:(.+):(.+)$/, async (ctx) => {
+    await ctx.answerCbQuery();
+    await handleRenewPlan(ctx, ctx.match[1], ctx.match[2]);
   });
   bot.action(/^content:(TRAINING|SOFTWARE)$/, async (ctx) => {
     await ctx.answerCbQuery();
@@ -229,6 +230,10 @@ export function createBot() {
     await ctx.answerCbQuery();
     await handleToggleCategory(ctx, ctx.match[1]);
   });
+  bot.action(/^admin:category_edit:(.+)$/, async (ctx) => {
+    await ctx.answerCbQuery();
+    await startEditCategory(ctx, ctx.match[1]);
+  });
   bot.action(/^admin:category_delete:(.+)$/, async (ctx) => {
     await ctx.answerCbQuery();
     await handleDeleteCategory(ctx, ctx.match[1]);
@@ -276,6 +281,10 @@ export function createBot() {
   bot.action(/^admin:plan_toggle:(.+)$/, async (ctx) => {
     await ctx.answerCbQuery();
     await handleTogglePlan(ctx, ctx.match[1]);
+  });
+  bot.action(/^admin:plan_edit:(.+)$/, async (ctx) => {
+    await ctx.answerCbQuery();
+    await startEditPlan(ctx, ctx.match[1]);
   });
   bot.action(/^admin:plan_delete:(.+)$/, async (ctx) => {
     await ctx.answerCbQuery();
@@ -354,6 +363,9 @@ export function createBot() {
       case "admin_category_squad":
         await handleAddCategorySquad(ctx, text);
         break;
+      case "admin_category_edit":
+        await handleEditCategoryText(ctx, text);
+        break;
       case "admin_plan_title":
         await handleAddPlanTitle(ctx, text);
         break;
@@ -368,6 +380,9 @@ export function createBot() {
         break;
       case "admin_plan_squads":
         await handleAddPlanSquads(ctx, text);
+        break;
+      case "admin_plan_edit":
+        await handleEditPlanText(ctx, text);
         break;
       case "admin_discount":
         await handleAddDiscountText(ctx, text);

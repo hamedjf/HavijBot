@@ -9,11 +9,13 @@ export type SessionState = {
     | "discount_code"
     | "admin_category_title"
     | "admin_category_squad"
+    | "admin_category_edit"
     | "admin_plan_title"
     | "admin_plan_volume"
     | "admin_plan_duration"
     | "admin_plan_price"
     | "admin_plan_squads"
+    | "admin_plan_edit"
     | "admin_content"
     | "admin_discount"
     | "admin_text_value"
@@ -23,7 +25,9 @@ export type SessionState = {
   orderId?: string;
   contentKind?: "TRAINING" | "SOFTWARE";
   adminCategoryTitle?: string;
+  adminCategoryId?: string;
   adminPlanCategoryId?: string;
+  adminPlanId?: string;
   adminPlanTitle?: string;
   adminPlanVolumeGb?: number;
   adminPlanDurationDays?: number;

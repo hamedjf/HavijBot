@@ -157,6 +157,7 @@ export async function handleCategoryDetail(ctx: BotContext, categoryId: string) 
       `تعداد پلن‌ها: ${category._count.plans}`
     ].join("\n"),
     Markup.inlineKeyboard([
+      [Markup.button.callback("✏️ ویرایش دسته‌بندی", `admin:category_edit:${category.id}`)],
       [Markup.button.callback(category.isEnabled ? "⛔ غیرفعال کردن" : "✅ فعال کردن", `admin:category_toggle:${category.id}`)],
       [Markup.button.callback("🗑 حذف دسته‌بندی", `admin:category_delete:${category.id}`)],
       [Markup.button.callback("⬅️ بازگشت", "admin:categories")]
@@ -377,6 +378,7 @@ export async function handlePlanDetail(ctx: BotContext, planId: string) {
       `وضعیت: ${plan.isEnabled ? "فعال" : "غیرفعال"}`
     ].join("\n"),
     Markup.inlineKeyboard([
+      [Markup.button.callback("✏️ ویرایش پلن", `admin:plan_edit:${plan.id}`)],
       [Markup.button.callback(plan.isEnabled ? "⛔ غیرفعال کردن" : "✅ فعال کردن", `admin:plan_toggle:${plan.id}`)],
       [Markup.button.callback("🗑 حذف پلن", `admin:plan_delete:${plan.id}`)],
       [Markup.button.callback("⬅️ بازگشت", "admin:plans")]
@@ -398,15 +400,116 @@ export async function handleTogglePlan(ctx: BotContext, planId: string) {
 
 export async function handleDeletePlan(ctx: BotContext, planId: string) {
   if (!ensureAdmin(ctx)) return;
-  const orderCount = await prisma.order.count({ where: { planId } });
-  if (orderCount > 0) {
+  const serviceCount = await prisma.purchasedService.count({ where: { planId } });
+  if (serviceCount > 0) {
     await prisma.plan.update({ where: { id: planId }, data: { isEnabled: false } });
-    await ctx.reply("⚠️ این پلن سفارش دارد؛ حذف نشد و فقط غیرفعال شد.");
+    await ctx.reply("⚠️ این پلن روی سرویس‌های خریداری‌شده استفاده شده؛ برای حفظ تاریخچه حذف نشد و فقط غیرفعال شد.");
   } else {
-    await prisma.plan.delete({ where: { id: planId } });
+    await prisma.$transaction(async (tx) => {
+      await tx.order.updateMany({ where: { planId }, data: { planId: null } });
+      await tx.plan.delete({ where: { id: planId } });
+    });
     await ctx.reply("✅ پلن حذف شد.");
   }
   await handlePlans(ctx);
+}
+
+export async function startEditCategory(ctx: BotContext, categoryId: string) {
+  if (!ensureAdmin(ctx)) return;
+  const category = await prisma.planCategory.findUnique({ where: { id: categoryId } });
+  if (!category) {
+    await ctx.reply("❌ دسته‌بندی پیدا نشد.");
+    return;
+  }
+  ctx.session = { flow: "admin_category_edit", adminCategoryId: category.id };
+  await ctx.reply(
+    [
+      "✏️ اطلاعات جدید دسته‌بندی را با این فرمت ارسال کنید:",
+      "",
+      "title | squad_uuid1,squad_uuid2",
+      "",
+      "مثال:",
+      `${category.title} | ${category.remnawaveSquadUuids.length > 0 ? category.remnawaveSquadUuids.join(",") : category.remnawaveSquadUuid}`
+    ].join("\n")
+  );
+}
+
+export async function handleEditCategoryText(ctx: BotContext, text: string) {
+  if (!ensureAdmin(ctx)) return;
+  const categoryId = ctx.session.adminCategoryId;
+  const [titleRaw, squadsRaw] = splitParts(text, 2);
+  const title = titleRaw?.trim();
+  const squadUuids = parseSquadUuids(squadsRaw ?? "");
+  if (!categoryId || !title || squadUuids.length === 0) {
+    await ctx.reply("❌ فرمت ویرایش دسته‌بندی درست نیست.");
+    return;
+  }
+
+  await prisma.planCategory.update({
+    where: { id: categoryId },
+    data: {
+      title,
+      remnawaveSquadUuid: squadUuids[0]!,
+      remnawaveSquadUuids: squadUuids
+    }
+  });
+  ctx.session = {};
+  await ctx.reply("✅ دسته‌بندی ویرایش شد.");
+  await handleCategoryDetail(ctx, categoryId);
+}
+
+export async function startEditPlan(ctx: BotContext, planId: string) {
+  if (!ensureAdmin(ctx)) return;
+  const plan = await prisma.plan.findUnique({ where: { id: planId } });
+  if (!plan) {
+    await ctx.reply("❌ پلن پیدا نشد.");
+    return;
+  }
+  ctx.session = { flow: "admin_plan_edit", adminPlanId: plan.id };
+  await ctx.reply(
+    [
+      "✏️ اطلاعات جدید پلن را با این فرمت ارسال کنید:",
+      "",
+      "title | volume_gb | duration_days | price_toman | squad_uuid1,squad_uuid2",
+      "",
+      "اگر پلن از Squad دسته‌بندی استفاده می‌کند، بخش آخر را - بگذارید.",
+      "",
+      "مثال:",
+      `${plan.title} | ${plan.volumeGb} | ${plan.durationDays} | ${plan.priceToman} | ${plan.remnawaveSquadUuids.length > 0 ? plan.remnawaveSquadUuids.join(",") : "-"}`
+    ].join("\n")
+  );
+}
+
+export async function handleEditPlanText(ctx: BotContext, text: string) {
+  if (!ensureAdmin(ctx)) return;
+  const planId = ctx.session.adminPlanId;
+  const [titleRaw, volumeRaw, durationRaw, priceRaw, squadsRaw] = splitParts(text, 5);
+  const title = titleRaw?.trim();
+  const volumeGb = Number(volumeRaw?.replace(/[^\d]/g, ""));
+  const durationDays = Number(durationRaw?.replace(/[^\d]/g, ""));
+  const priceToman = Number(priceRaw?.replace(/[^\d]/g, ""));
+  const squadUuids = squadsRaw?.trim() === "-" ? [] : parseSquadUuids(squadsRaw ?? "");
+  if (
+    !planId ||
+    !title ||
+    !Number.isSafeInteger(volumeGb) ||
+    volumeGb <= 0 ||
+    !Number.isSafeInteger(durationDays) ||
+    durationDays <= 0 ||
+    !Number.isSafeInteger(priceToman) ||
+    priceToman <= 0
+  ) {
+    await ctx.reply("❌ فرمت ویرایش پلن درست نیست.");
+    return;
+  }
+
+  await prisma.plan.update({
+    where: { id: planId },
+    data: { title, volumeGb, durationDays, priceToman, remnawaveSquadUuids: squadUuids }
+  });
+  ctx.session = {};
+  await ctx.reply("✅ پلن ویرایش شد.");
+  await handlePlanDetail(ctx, planId);
 }
 
 export async function handleApprove(ctx: BotContext, receiptId: string) {

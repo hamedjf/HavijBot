@@ -261,16 +261,6 @@ export async function handleReceiptPhoto(ctx: BotContext, fileId: string) {
   await replyMainMenu(ctx);
 }
 
-export async function handleCopyCardNumber(ctx: BotContext) {
-  const cardText = await getCardToCardText();
-  await ctx.answerCbQuery(`شماره کارت:\n${extractCardNumber(cardText) ?? cardText.slice(0, 180)}`, { show_alert: true });
-}
-
-export async function handleCopyRialAmount(ctx: BotContext, orderId: string) {
-  const { due } = await getOrderPayable(orderId);
-  await ctx.answerCbQuery(`مبلغ ریالی:\n${due * 10}`, { show_alert: true });
-}
-
 export async function handleMyServices(ctx: BotContext) {
   if (!(await ensureAllowed(ctx))) return;
   const user = await upsertTelegramUser(ctx);
@@ -351,12 +341,44 @@ export async function handleRenewService(ctx: BotContext, serviceId: string) {
   }
 
   const plan = await prisma.plan.findUnique({ where: { id: service.planId } });
-  if (!plan?.isEnabled) {
-    await ctx.reply("❌ پلن فعلی این سرویس برای تمدید فعال نیست. لطفا با پشتیبانی در ارتباط باشید.");
+  if (!plan) {
+    await ctx.reply("❌ پلن فعلی این سرویس پیدا نشد. لطفا با پشتیبانی در ارتباط باشید.");
     return;
   }
 
-  const order = await createRenewalOrder(user.id, serviceId);
+  const renewalPlans = await prisma.plan.findMany({
+    where: { categoryId: plan.categoryId, isEnabled: true, category: { isEnabled: true } },
+    orderBy: [{ durationDays: "asc" }, { volumeGb: "asc" }]
+  });
+  if (renewalPlans.length === 0) {
+    await ctx.reply("❌ در حال حاضر پلن فعالی برای تمدید این سرویس وجود ندارد.");
+    return;
+  }
+
+  await ctx.reply(
+    "🔄 پلن تمدید را انتخاب کنید:",
+    Markup.inlineKeyboard([
+      ...renewalPlans.map((renewalPlan) => [
+        Markup.button.callback(
+          `${renewalPlan.title} / ${formatGb(renewalPlan.volumeGb)} / ${formatDays(renewalPlan.durationDays)} / ${formatToman(renewalPlan.priceToman)}`,
+          `renew_plan:${service.id}:${renewalPlan.id}`
+        )
+      ]),
+      ...userNavKeyboard(`svc:${service.id}`)
+    ])
+  );
+}
+
+export async function handleRenewPlan(ctx: BotContext, serviceId: string, planId: string) {
+  if (!(await ensureAllowed(ctx))) return;
+  const user = await upsertTelegramUser(ctx);
+  const plan = await prisma.plan.findUnique({ where: { id: planId } });
+  if (!plan?.isEnabled) {
+    await ctx.reply("❌ این پلن برای تمدید فعال نیست.");
+    return;
+  }
+
+  const order = await createRenewalOrder(user.id, serviceId, planId);
   ctx.session.orderId = order.id;
   await ctx.reply(
     await getText("renew.created", {
@@ -590,10 +612,6 @@ async function getCardCopyKeyboard(orderId: string) {
     [
       copyTextButton("📋 کپی شماره کارت", cardNumber),
       copyTextButton("📋 کپی مبلغ ریالی", rialAmount)
-    ],
-    [
-      Markup.button.callback("نمایش شماره کارت", "copy_card"),
-      Markup.button.callback("نمایش مبلغ ریالی", `copy_rial:${orderId}`)
     ],
     ...userNavKeyboard()
   ]);

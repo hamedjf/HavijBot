@@ -44,16 +44,27 @@ export async function createWalletTopupOrder(userId: string, amountToman: number
   });
 }
 
-export async function createRenewalOrder(userId: string, serviceId: string) {
+export async function createRenewalOrder(userId: string, serviceId: string, renewalPlanId: string) {
   const service = await prisma.purchasedService.findFirst({
     where: { id: serviceId, userId }
   });
   if (!service) {
     throw new Error("Service baraye tamdid peyda nashod.");
   }
-  const plan = await prisma.plan.findUnique({ where: { id: service.planId } });
-  if (!plan?.isEnabled) {
-    throw new Error("Plan feli service baraye tamdid faal nist.");
+  const currentPlan = await prisma.plan.findUnique({ where: { id: service.planId } });
+  if (!currentPlan) {
+    throw new Error("Plan feli service peyda nashod.");
+  }
+  const plan = await prisma.plan.findFirst({
+    where: {
+      id: renewalPlanId,
+      categoryId: currentPlan.categoryId,
+      isEnabled: true,
+      category: { isEnabled: true }
+    }
+  });
+  if (!plan) {
+    throw new Error("Plan tamdid faal peyda nashod.");
   }
 
   return prisma.order.create({

@@ -7,15 +7,15 @@ import { calculateWalletBalance } from "../src/domain/wallet.js";
 
 describe("domain helpers", () => {
   it("sanitizes usernames", () => {
-    expect(sanitizeUsername("@Ha med!*")).toBe("Ha_med_");
+    expect(sanitizeUsername("@Hoo shang!*")).toBe("Hoo_shang_");
     expect(sanitizeUsername("ab")).toMatch(/^user_/);
   });
 
   it("validates service usernames strictly", () => {
-    expect(isValidServiceUsername("Hamed_20")).toBe(true);
-    expect(isValidServiceUsername("hamed-vip")).toBe(true);
+    expect(isValidServiceUsername("Hooshang_20")).toBe(true);
+    expect(isValidServiceUsername("hooshang-vip")).toBe(true);
     expect(isValidServiceUsername("حامد")).toBe(false);
-    expect(isValidServiceUsername("Ha med")).toBe(false);
+    expect(isValidServiceUsername("Hoo shang")).toBe(false);
   });
 
   it("adds a four digit suffix without growing too long", () => {

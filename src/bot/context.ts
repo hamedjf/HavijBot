@@ -23,6 +23,7 @@ export type SessionState = {
     | "admin_card_text";
   planId?: string;
   orderId?: string;
+  renewalServiceId?: string;
   contentKind?: "TRAINING" | "SOFTWARE";
   adminCategoryTitle?: string;
   adminCategoryId?: string;

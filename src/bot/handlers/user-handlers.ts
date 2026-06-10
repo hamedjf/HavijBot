@@ -355,13 +355,14 @@ export async function handleRenewService(ctx: BotContext, serviceId: string) {
     return;
   }
 
+  ctx.session.renewalServiceId = service.id;
   await ctx.reply(
     "🔄 پلن تمدید را انتخاب کنید:",
     Markup.inlineKeyboard([
       ...renewalPlans.map((renewalPlan) => [
         Markup.button.callback(
           `${renewalPlan.title} / ${formatGb(renewalPlan.volumeGb)} / ${formatDays(renewalPlan.durationDays)} / ${formatToman(renewalPlan.priceToman)}`,
-          `renew_plan:${service.id}:${renewalPlan.id}`
+          `renew_plan:${renewalPlan.id}`
         )
       ]),
       ...userNavKeyboard(`svc:${service.id}`)
@@ -369,9 +370,14 @@ export async function handleRenewService(ctx: BotContext, serviceId: string) {
   );
 }
 
-export async function handleRenewPlan(ctx: BotContext, serviceId: string, planId: string) {
+export async function handleRenewPlan(ctx: BotContext, planId: string) {
   if (!(await ensureAllowed(ctx))) return;
   const user = await upsertTelegramUser(ctx);
+  const serviceId = ctx.session.renewalServiceId;
+  if (!serviceId) {
+    await ctx.reply("❌ سرویس تمدید پیدا نشد. لطفا دوباره از بخش سرویس‌های من شروع کنید.");
+    return;
+  }
   const plan = await prisma.plan.findUnique({ where: { id: planId } });
   if (!plan?.isEnabled) {
     await ctx.reply("❌ این پلن برای تمدید فعال نیست.");
@@ -380,6 +386,7 @@ export async function handleRenewPlan(ctx: BotContext, serviceId: string, planId
 
   const order = await createRenewalOrder(user.id, serviceId, planId);
   ctx.session.orderId = order.id;
+  ctx.session.renewalServiceId = undefined;
   await ctx.reply(
     await getText("renew.created", {
       volume: formatGb(plan.volumeGb),

@@ -177,9 +177,9 @@ export function createBot() {
     await ctx.answerCbQuery();
     await handleRenewService(ctx, ctx.match[1]);
   });
-  bot.action(/^renew_plan:(.+):(.+)$/, async (ctx) => {
+  bot.action(/^renew_plan:(.+)$/, async (ctx) => {
     await ctx.answerCbQuery();
-    await handleRenewPlan(ctx, ctx.match[1], ctx.match[2]);
+    await handleRenewPlan(ctx, ctx.match[1]);
   });
   bot.action(/^content:(TRAINING|SOFTWARE)$/, async (ctx) => {
     await ctx.answerCbQuery();

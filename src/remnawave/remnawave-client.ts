@@ -367,7 +367,7 @@ function firstString(data: RemnawaveRawUser, keys: string[]): string | undefined
 
 function firstNumber(data: RemnawaveRawUser, keys: string[]): number | undefined {
   for (const key of keys) {
-    const value = data[key];
+    const value = findNestedValue(data, key);
     if (typeof value === "number") {
       return value;
     }
@@ -375,6 +375,27 @@ function firstNumber(data: RemnawaveRawUser, keys: string[]): number | undefined
       return Number(value);
     }
   }
+  return undefined;
+}
+
+function findNestedValue(data: RemnawaveRawUser, key: string, depth = 0): unknown {
+  if (Object.prototype.hasOwnProperty.call(data, key)) {
+    return data[key];
+  }
+  if (depth >= 2) {
+    return undefined;
+  }
+
+  for (const value of Object.values(data)) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      continue;
+    }
+    const nested = findNestedValue(value as RemnawaveRawUser, key, depth + 1);
+    if (nested !== undefined) {
+      return nested;
+    }
+  }
+
   return undefined;
 }
 

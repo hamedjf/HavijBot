@@ -609,7 +609,7 @@ async function getCardPaymentText(amountToman: number) {
     cardText,
     cardNumber
   });
-  return [text, "", `شماره کارت: ${cardNumber}`, `مبلغ به ریال: ${rial} ریال`].join("\n");
+  return text;
 }
 
 async function getCardChargeText(amountToman: number) {
@@ -622,7 +622,7 @@ async function getCardChargeText(amountToman: number) {
     cardText,
     cardNumber
   });
-  return [text, "", `شماره کارت: ${cardNumber}`, `مبلغ به ریال: ${rial} ریال`].join("\n");
+  return text;
 }
 
 async function getCardCopyKeyboard(orderId: string) {

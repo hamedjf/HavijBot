@@ -58,7 +58,7 @@ import {
   handleContent,
   handleContentItem,
   handleFreeTrial,
-  handleFreeTrialPlan,
+  handleFreeTrialCategory,
   handleMyServices,
   handlePayCard,
   handleApplyWallet,
@@ -149,9 +149,9 @@ export function createBot() {
     await ctx.answerCbQuery();
     await handlePlan(ctx, ctx.match[1]);
   });
-  bot.action(/^trial_plan:(.+)$/, async (ctx) => {
+  bot.action(/^trial_cat:(.+)$/, async (ctx) => {
     await ctx.answerCbQuery();
-    await handleFreeTrialPlan(ctx, ctx.match[1]);
+    await handleFreeTrialCategory(ctx, ctx.match[1]);
   });
   bot.action(/^pay_card:(.+)$/, async (ctx) => {
     await ctx.answerCbQuery();

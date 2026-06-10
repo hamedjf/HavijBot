@@ -73,7 +73,7 @@ export const BOT_TEXT_DEFINITIONS = [
   { key: "services.notFound", title: "پیام پیدا نشدن سرویس", fallback: "❌ سرویس پیدا نشد." },
 
   { key: "trial.noPlans", title: "پیام نبودن پلن تست", fallback: "⏳ در حال حاضر پلن فعالی برای دریافت تست وجود ندارد." },
-  { key: "trial.selectPlan", title: "پیام انتخاب پلن تست", fallback: "پلن مورد نظر برای دریافت تست را انتخاب کنید." },
+  { key: "trial.selectPlan", title: "پیام انتخاب دسته‌بندی تست", fallback: "دسته‌بندی مورد نظر برای دریافت تست را انتخاب کنید." },
   { key: "trial.alreadyUsed", title: "پیام استفاده قبلی از تست", fallback: "⚠️ شما قبلا تست رایگان خود را دریافت کرده‌اید." },
   { key: "trial.creating", title: "پیام شروع ساخت تست", fallback: "⏳ در حال ساخت تست رایگان شما هستیم..." },
   { key: "trial.failed", title: "پیام خطای ساخت تست", fallback: "❌ ساخت تست رایگان ناموفق بود. لطفا کمی بعد دوباره تلاش کنید." },

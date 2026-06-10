@@ -82,15 +82,16 @@ export async function createRenewalOrder(userId: string, serviceId: string, rene
   });
 }
 
-export async function createFreeTrialService(userId: string, planId: string): Promise<OrderWithUserPlan> {
+export async function createFreeTrialService(userId: string, categoryId: string): Promise<OrderWithUserPlan> {
   const user = await prisma.telegramUser.findUnique({ where: { id: userId } });
   if (!user) {
     throw new Error("کاربر پیدا نشد.");
   }
 
   const plan = await prisma.plan.findFirst({
-    where: { id: planId, isEnabled: true, category: { isEnabled: true } },
-    include: { category: true }
+    where: { categoryId, isEnabled: true, category: { isEnabled: true } },
+    include: { category: true },
+    orderBy: [{ durationDays: "asc" }, { volumeGb: "asc" }]
   });
   if (!plan) {
     throw new Error("پلن فعال برای تست پیدا نشد.");
@@ -108,7 +109,7 @@ export async function createFreeTrialService(userId: string, planId: string): Pr
       status: "PROVISIONING",
       amountToman: 0,
       cardAmountToman: 0,
-      planId,
+      planId: plan.id,
       requestedUsername: "test"
     }
   });
@@ -116,7 +117,7 @@ export async function createFreeTrialService(userId: string, planId: string): Pr
   await prisma.freeTrial.upsert({
     where: { userId },
     update: {
-      planId,
+      planId: plan.id,
       orderId: order.id,
       serviceId: null,
       remnawaveUserUuid: null,
@@ -126,7 +127,7 @@ export async function createFreeTrialService(userId: string, planId: string): Pr
     },
     create: {
       userId,
-      planId,
+      planId: plan.id,
       orderId: order.id,
       status: "PROVISIONING"
     }
@@ -148,7 +149,7 @@ export async function createFreeTrialService(userId: string, planId: string): Pr
         data: {
           userId,
           orderId: order.id,
-          planId,
+          planId: plan.id,
           remnawaveUserUuid: remoteUser.uuid,
           remnawaveShortUuid: remoteUser.shortUuid,
           username: remoteUser.username,

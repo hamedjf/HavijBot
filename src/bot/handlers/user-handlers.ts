@@ -67,13 +67,12 @@ export async function handleFreeTrial(ctx: BotContext) {
     return;
   }
 
-  const plans = await prisma.plan.findMany({
-    where: { isEnabled: true, category: { isEnabled: true } },
-    include: { category: true },
-    orderBy: [{ category: { title: "asc" } }, { durationDays: "asc" }, { volumeGb: "asc" }]
+  const categories = await prisma.planCategory.findMany({
+    where: { isEnabled: true, plans: { some: { isEnabled: true } } },
+    orderBy: { title: "asc" }
   });
 
-  if (plans.length === 0) {
+  if (categories.length === 0) {
     await ctx.reply(await getText("trial.noPlans"), Markup.inlineKeyboard(userNavKeyboard()));
     return;
   }
@@ -81,19 +80,19 @@ export async function handleFreeTrial(ctx: BotContext) {
   await ctx.reply(
     await getText("trial.selectPlan"),
     Markup.inlineKeyboard([
-      ...plans.map((plan) => [Markup.button.callback(`${plan.category.title} / ${plan.title}`, `trial_plan:${plan.id}`)]),
+      ...categories.map((category) => [Markup.button.callback(category.title, `trial_cat:${category.id}`)]),
       ...userNavKeyboard()
     ])
   );
 }
 
-export async function handleFreeTrialPlan(ctx: BotContext, planId: string) {
+export async function handleFreeTrialCategory(ctx: BotContext, categoryId: string) {
   if (!(await ensureAllowed(ctx))) return;
   const user = await upsertTelegramUser(ctx);
   await ctx.reply(await getText("trial.creating"));
 
   try {
-    const order = await createFreeTrialService(user.id, planId);
+    const order = await createFreeTrialService(user.id, categoryId);
     await sendProvisionedService(ctx, order.id);
   } catch (error) {
     const message = error instanceof Error ? error.message : await getText("trial.failed");

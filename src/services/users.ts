@@ -28,7 +28,16 @@ export async function upsertTelegramUser(ctx: Context, referralCode?: string | n
   });
 
   if (!existingUser && referralCode && referralCode !== ownReferralCode) {
-    await attachReferral(user.id, referralCode);
+    const referrer = await attachReferral(user.id, referralCode);
+    if (referrer) {
+      const referralsCount = await prisma.telegramUser.count({ where: { referredByUserId: referrer.id } });
+      await ctx.telegram
+        .sendMessage(
+          Number(referrer.telegramId),
+          ["تبریک، فرد جدیدی با کد دعوت شما وارد ربات شد.", "", `تعداد کل زیرمجموعه‌ها: ${referralsCount}`].join("\n")
+        )
+        .catch(() => null);
+    }
   }
 
   return prisma.telegramUser.findUniqueOrThrow({ where: { id: user.id } });
@@ -37,18 +46,21 @@ export async function upsertTelegramUser(ctx: Context, referralCode?: string | n
 async function attachReferral(newUserId: string, referralCode: string) {
   const referrer = await prisma.telegramUser.findUnique({ where: { referralCode } });
   if (!referrer) {
-    return;
+    return null;
   }
 
-  await prisma.$transaction(async (tx) => {
+  const attached = await prisma.$transaction(async (tx) => {
     const newUser = await tx.telegramUser.findUnique({ where: { id: newUserId } });
     if (!newUser || newUser.referredByUserId || newUser.id === referrer.id) {
-      return;
+      return false;
     }
 
     await tx.telegramUser.update({
       where: { id: newUserId },
       data: { referredByUserId: referrer.id }
     });
+    return true;
   });
+
+  return attached ? referrer : null;
 }

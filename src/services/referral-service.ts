@@ -1,5 +1,8 @@
+import { Telegram } from "telegraf";
 import { config } from "../config.js";
 import { prisma } from "../db.js";
+import { formatToman } from "../domain/format.js";
+import { getWalletBalance } from "./wallet-service.js";
 
 export async function grantPurchaseReferralReward(orderId: string): Promise<void> {
   if (config.REFERRAL_REWARD_PERCENT <= 0) {
@@ -21,7 +24,7 @@ export async function grantPurchaseReferralReward(orderId: string): Promise<void
     return;
   }
 
-  await prisma.$transaction(async (tx) => {
+  const rewardCreated = await prisma.$transaction(async (tx) => {
     const existingReward = await tx.walletTransaction.findFirst({
       where: {
         userId: referrerId,
@@ -30,7 +33,7 @@ export async function grantPurchaseReferralReward(orderId: string): Promise<void
       }
     });
     if (existingReward) {
-      return;
+      return false;
     }
 
     await tx.walletTransaction.create({
@@ -42,5 +45,24 @@ export async function grantPurchaseReferralReward(orderId: string): Promise<void
         description: `پاداش دعوت ${config.REFERRAL_REWARD_PERCENT}% برای سفارش ${order.id}`
       }
     });
+    return true;
   });
+
+  if (!rewardCreated) {
+    return;
+  }
+
+  const referrer = await prisma.telegramUser.findUnique({ where: { id: referrerId } });
+  if (!referrer) {
+    return;
+  }
+
+  const balance = await getWalletBalance(referrerId);
+  const telegram = new Telegram(config.BOT_TOKEN);
+  await telegram
+    .sendMessage(
+      Number(referrer.telegramId),
+      ["تبریک یکی از زیرمجموعه‌های شما خرید انجام داد.", "", `موجودی کیف پول جدید شما: ${formatToman(balance)}`].join("\n")
+    )
+    .catch(() => null);
 }

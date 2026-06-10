@@ -112,9 +112,9 @@ export class RemnawaveClient {
   }
 
   async createTrialUser(input: CreateTrialUserInput): Promise<RemnawaveUser> {
-    const tempUsername = `test_${input.telegramId}_${Date.now()}`;
+    const username = `test${input.telegramId}`;
     const payload = {
-      username: tempUsername,
+      username,
       status: "ACTIVE",
       isActive: true,
       enabled: true,
@@ -133,29 +133,14 @@ export class RemnawaveClient {
       {
         action: "remnawave.createTrialUser",
         orderId: input.orderId,
-        telegramId: input.telegramId
+        telegramId: input.telegramId,
+        username
       },
       "Creating Remnawave trial user"
     );
 
     const createResponse = await this.#safeRequest(() => this.http.post("/api/users", payload), "create trial user");
-    const createdUser = normalizeUser(createResponse.data);
-    if (!createdUser.remnawaveId) {
-      return createdUser;
-    }
-
-    const finalUsername = `test${createdUser.remnawaveId}`;
-    const updateResponse = await this.#safeRequest(
-      () =>
-        this.http.patch("/api/users", {
-          uuid: createdUser.uuid,
-          username: finalUsername,
-          tag: "BOTTEST"
-        }),
-      "rename trial user"
-    );
-
-    return normalizeUser(updateResponse.data);
+    return normalizeUser(createResponse.data);
   }
 
   async getUser(usernameOrUuid: string): Promise<RemnawaveUser | null> {

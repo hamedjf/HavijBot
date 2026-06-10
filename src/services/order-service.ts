@@ -134,7 +134,7 @@ export async function applyDiscountCode(orderId: string, code: string): Promise<
       where: { discountCodeId_userId: { discountCodeId: discount.id, userId: order.userId } }
     });
     if (existingUsage) {
-      throw new Error("In code takhfif ghablan baraye shoma estefade shode.");
+      throw new Error("این کد قبلا استفاده شده است!");
     }
   }
 

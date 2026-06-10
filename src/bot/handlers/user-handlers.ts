@@ -307,9 +307,26 @@ export async function handleServiceDetail(ctx: BotContext, serviceId: string) {
     }
     throw error;
   }
-  const daysLeft = Math.max(0, Math.ceil((service.expiresAt.getTime() - Date.now()) / 86_400_000));
+  const syncedExpiresAt = usage.expiresAt ?? service.expiresAt;
+  const syncedVolumeGb = usage.trafficLimitBytes > 0 ? Math.ceil(bytesToGb(usage.trafficLimitBytes)) : service.volumeGb;
+  if (
+    syncedExpiresAt.getTime() !== service.expiresAt.getTime() ||
+    syncedVolumeGb !== service.volumeGb ||
+    subscriptionUrl !== service.subscriptionUrl
+  ) {
+    await prisma.purchasedService.update({
+      where: { id: service.id },
+      data: {
+        expiresAt: syncedExpiresAt,
+        volumeGb: syncedVolumeGb,
+        subscriptionUrl
+      }
+    });
+  }
+
+  const daysLeft = Math.max(0, Math.ceil((syncedExpiresAt.getTime() - Date.now()) / 86_400_000));
   const usedGb = bytesToGb(usage.usedTrafficBytes);
-  const totalGb = usage.trafficLimitBytes ? bytesToGb(usage.trafficLimitBytes) : service.volumeGb;
+  const totalGb = usage.trafficLimitBytes > 0 ? bytesToGb(usage.trafficLimitBytes) : syncedVolumeGb;
 
   await ctx.replyWithPhoto(
     { source: qr },

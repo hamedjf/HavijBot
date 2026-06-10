@@ -317,9 +317,25 @@ function normalizeUser(raw: unknown): RemnawaveUser {
     username,
     shortUuid: firstString(data, ["shortUuid", "short_uuid", "subscriptionUuid"]),
     subscriptionUrl: firstString(data, ["subscriptionUrl", "subscription_url", "subUrl"]),
-    usedTrafficBytes: firstNumber(data, ["usedTrafficBytes", "usedTraffic", "usedTrafficBytesTotal"]),
-    trafficLimitBytes: firstNumber(data, ["trafficLimitBytes", "trafficLimit", "totalTrafficBytes"]),
-    expiresAt: firstDate(data, ["expiresAt", "expireAt", "expiredAt"]),
+    usedTrafficBytes: firstNumber(data, [
+      "usedTrafficBytes",
+      "usedTraffic",
+      "usedBytes",
+      "usedTrafficBytesTotal",
+      "trafficUsedBytes",
+      "trafficUsed",
+      "usedTrafficTotal"
+    ]),
+    trafficLimitBytes: firstNumber(data, [
+      "trafficLimitBytes",
+      "trafficLimit",
+      "totalTrafficBytes",
+      "totalTraffic",
+      "limitBytes",
+      "dataLimit",
+      "trafficLimitBytesTotal"
+    ]),
+    expiresAt: firstDate(data, ["expiresAt", "expireAt", "expiredAt", "expires_at", "expire_at", "expiryTime", "expiryDate"]),
     status: firstString(data, ["status", "state"]),
     isActive: firstBoolean(data, ["isActive", "active", "enabled"])
   };
@@ -377,7 +393,11 @@ function firstBoolean(data: RemnawaveRawUser, keys: string[]): boolean | undefin
 
 function firstDate(data: RemnawaveRawUser, keys: string[]): Date | undefined {
   const value = firstString(data, keys);
-  return value ? new Date(value) : undefined;
+  if (!value) {
+    return undefined;
+  }
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? undefined : date;
 }
 
 function isNotFound(error: unknown): boolean {

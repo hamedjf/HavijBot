@@ -29,7 +29,6 @@ import {
   handleEditCategoryText,
   handleEditPlanText,
   handleEditTextValue,
-  handleMembershipDebug,
   handlePendingPayments,
   handlePlanCategorySelected,
   handlePlanDetail,
@@ -210,10 +209,6 @@ export function createBot() {
   bot.action("admin:broadcast", async (ctx) => {
     await ctx.answerCbQuery();
     await startBroadcast(ctx);
-  });
-  bot.action("admin:membership_debug", async (ctx) => {
-    await ctx.answerCbQuery();
-    await handleMembershipDebug(ctx);
   });
   bot.action("admin:card_text", async (ctx) => {
     await ctx.answerCbQuery();

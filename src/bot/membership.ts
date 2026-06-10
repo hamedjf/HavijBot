@@ -34,7 +34,7 @@ export async function isChannelMember(ctx: BotContext): Promise<boolean> {
       },
       "Channel membership check failed"
     );
-    return true;
+    return false;
   }
 }
 

@@ -15,12 +15,30 @@ app.get("/health", (_req, res) => {
   res.json({ ok: true });
 });
 
+app.use("/telegram/webhook", (req, res, next) => {
+  if (!config.WEBHOOK_SECRET_TOKEN) {
+    next();
+    return;
+  }
+
+  if (req.header("x-telegram-bot-api-secret-token") !== config.WEBHOOK_SECRET_TOKEN) {
+    res.sendStatus(401);
+    return;
+  }
+
+  next();
+});
+
 app.use(bot.webhookCallback("/telegram/webhook"));
 
 const server = app.listen(config.PORT, async () => {
   const webhookUrl = `${config.PUBLIC_WEBHOOK_URL.replace(/\/$/, "")}/telegram/webhook`;
   await bot.telegram.setMyCommands([]);
-  await bot.telegram.setWebhook(webhookUrl);
+  if (config.WEBHOOK_SECRET_TOKEN) {
+    await bot.telegram.setWebhook(webhookUrl, { secret_token: config.WEBHOOK_SECRET_TOKEN });
+  } else {
+    await bot.telegram.setWebhook(webhookUrl);
+  }
   startServiceMonitor(bot.telegram);
   startAdminDailyReport(bot.telegram);
   logger.info({ port: config.PORT, webhookUrl }, "HavijBot started");

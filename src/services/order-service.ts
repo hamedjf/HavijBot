@@ -252,11 +252,17 @@ export async function approvePayment(receiptId: string, adminTelegramId: number)
     throw new Error("رسید پیدا نشد");
   }
 
+  if (receipt.status !== "PENDING") {
+    throw new Error("این رسید قبلا بررسی شده است.");
+  }
   await prisma.$transaction(async (tx) => {
-    await tx.paymentReceipt.update({
-      where: { id: receiptId },
+    const updatedReceipt = await tx.paymentReceipt.updateMany({
+      where: { id: receiptId, status: "PENDING" },
       data: { status: "APPROVED", adminTelegramId: BigInt(adminTelegramId) }
     });
+    if (updatedReceipt.count !== 1) {
+      throw new Error("این رسید قبلا بررسی شده است.");
+    }
     await tx.order.update({
       where: { id: receipt.orderId },
       data: { status: "PAID" }
@@ -280,6 +286,12 @@ export async function approvePayment(receiptId: string, adminTelegramId: number)
     }
 
     if (receipt.order.type === "WALLET_TOPUP") {
+      const existingTopup = await tx.walletTransaction.findFirst({
+        where: { orderId: receipt.orderId, type: "TOPUP" }
+      });
+      if (existingTopup) {
+        return;
+      }
       await tx.walletTransaction.create({
         data: {
           userId: receipt.order.userId,
@@ -304,14 +316,31 @@ export async function approvePayment(receiptId: string, adminTelegramId: number)
 }
 
 export async function rejectPayment(receiptId: string, adminTelegramId: number, note = "تراکنش اشتباه است.") {
+  const existingReceipt = await prisma.paymentReceipt.findUnique({
+    where: { id: receiptId },
+    select: { status: true }
+  });
+  if (!existingReceipt) {
+    throw new Error("رسید پیدا نشد.");
+  }
+  if (existingReceipt.status !== "PENDING") {
+    throw new Error("این رسید قبلا بررسی شده است.");
+  }
   return prisma.$transaction(async (tx) => {
-    const receipt = await tx.paymentReceipt.update({
-      where: { id: receiptId },
+    const updatedReceipt = await tx.paymentReceipt.updateMany({
+      where: { id: receiptId, status: "PENDING" },
       data: {
         status: "REJECTED",
         adminTelegramId: BigInt(adminTelegramId),
         adminNote: note
-      },
+      }
+    });
+    if (updatedReceipt.count !== 1) {
+      throw new Error("این رسید قبلا بررسی شده است.");
+    }
+
+    const receipt = await tx.paymentReceipt.findUniqueOrThrow({
+      where: { id: receiptId },
       include: { order: true }
     });
 

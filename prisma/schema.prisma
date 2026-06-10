@@ -81,6 +81,7 @@ model TelegramUser {
   discountUsages    DiscountCodeUsage[]
   referredBy        TelegramUser?       @relation("UserReferrals", fields: [referredByUserId], references: [id])
   referrals         TelegramUser[]      @relation("UserReferrals")
+  freeTrials        FreeTrial[]
 }
 
 model PlanCategory {
@@ -108,6 +109,24 @@ model Plan {
   updatedAt      DateTime     @updatedAt
   category       PlanCategory @relation(fields: [categoryId], references: [id])
   orders         Order[]
+  freeTrials     FreeTrial[]
+}
+
+model FreeTrial {
+  id                  String            @id @default(uuid())
+  userId              String            @unique
+  planId              String
+  orderId             String            @unique
+  serviceId           String?           @unique
+  remnawaveUserUuid   String?
+  username            String?
+  status              String            @default("PROVISIONING")
+  failureReason       String?
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+  user                TelegramUser      @relation(fields: [userId], references: [id])
+  plan                Plan              @relation(fields: [planId], references: [id])
+  service             PurchasedService? @relation(fields: [serviceId], references: [id])
 }
 
 model Order {
@@ -212,6 +231,7 @@ model PurchasedService {
   user                  TelegramUser @relation(fields: [userId], references: [id])
   order                 Order        @relation("CreatedService", fields: [orderId], references: [id])
   renewalOrders         Order[]      @relation("RenewalOrders")
+  freeTrial             FreeTrial?
 }
 
 model AdminContent {

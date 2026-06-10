@@ -4,8 +4,9 @@ import { normalizeChannelId } from "./membership.js";
 
 export async function mainMenu(isAdmin = false) {
   const rows = [
-    [await getText("main.buy"), await getText("main.myServices")],
-    [await getText("main.tutorials"), await getText("main.apps")],
+    [await getText("main.buy"), await getText("main.freeTrial")],
+    [await getText("main.myServices"), await getText("main.tutorials")],
+    [await getText("main.apps")],
     [await getText("main.wallet"), await getText("main.referral")],
     [await getText("main.support")]
   ];

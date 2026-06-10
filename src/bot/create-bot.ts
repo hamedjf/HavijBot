@@ -57,6 +57,8 @@ import {
   handleCategory,
   handleContent,
   handleContentItem,
+  handleFreeTrial,
+  handleFreeTrialPlan,
   handleMyServices,
   handlePayCard,
   handleApplyWallet,
@@ -135,6 +137,10 @@ export function createBot() {
     await ctx.answerCbQuery();
     await handleBuy(ctx);
   });
+  bot.action("free_trial", async (ctx) => {
+    await ctx.answerCbQuery();
+    await handleFreeTrial(ctx);
+  });
   bot.action(/^cat:(.+)$/, async (ctx) => {
     await ctx.answerCbQuery();
     await handleCategory(ctx, ctx.match[1]);
@@ -142,6 +148,10 @@ export function createBot() {
   bot.action(/^plan:(.+)$/, async (ctx) => {
     await ctx.answerCbQuery();
     await handlePlan(ctx, ctx.match[1]);
+  });
+  bot.action(/^trial_plan:(.+)$/, async (ctx) => {
+    await ctx.answerCbQuery();
+    await handleFreeTrialPlan(ctx, ctx.match[1]);
   });
   bot.action(/^pay_card:(.+)$/, async (ctx) => {
     await ctx.answerCbQuery();
@@ -428,6 +438,7 @@ export function createBot() {
 async function handleMainKeyboardText(ctx: BotContext, text: string): Promise<boolean> {
   const entries: Array<[string, () => Promise<void>]> = [
     [await getText("main.buy"), async () => handleBuy(ctx)],
+    [await getText("main.freeTrial"), async () => handleFreeTrial(ctx)],
     [await getText("main.myServices"), async () => handleMyServices(ctx)],
     [await getText("main.tutorials"), async () => handleContent(ctx, "TRAINING")],
     [await getText("main.apps"), async () => handleContent(ctx, "SOFTWARE")],

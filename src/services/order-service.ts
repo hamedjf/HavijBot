@@ -82,6 +82,125 @@ export async function createRenewalOrder(userId: string, serviceId: string, rene
   });
 }
 
+export async function createFreeTrialService(userId: string, planId: string): Promise<OrderWithUserPlan> {
+  const user = await prisma.telegramUser.findUnique({ where: { id: userId } });
+  if (!user) {
+    throw new Error("کاربر پیدا نشد.");
+  }
+
+  const plan = await prisma.plan.findFirst({
+    where: { id: planId, isEnabled: true, category: { isEnabled: true } },
+    include: { category: true }
+  });
+  if (!plan) {
+    throw new Error("پلن فعال برای تست پیدا نشد.");
+  }
+
+  const existingTrial = await prisma.freeTrial.findUnique({ where: { userId } });
+  if (existingTrial && existingTrial.status !== "FAILED") {
+    throw new Error("شما قبلا تست رایگان خود را دریافت کرده‌اید.");
+  }
+
+  const order = await prisma.order.create({
+    data: {
+      userId,
+      type: "SERVICE_PURCHASE",
+      status: "PROVISIONING",
+      amountToman: 0,
+      cardAmountToman: 0,
+      planId,
+      requestedUsername: "test"
+    }
+  });
+
+  await prisma.freeTrial.upsert({
+    where: { userId },
+    update: {
+      planId,
+      orderId: order.id,
+      serviceId: null,
+      remnawaveUserUuid: null,
+      username: null,
+      status: "PROVISIONING",
+      failureReason: null
+    },
+    create: {
+      userId,
+      planId,
+      orderId: order.id,
+      status: "PROVISIONING"
+    }
+  });
+
+  try {
+    const expiresAt = expirationFromNow(2);
+    const remoteUser = await remnawaveClient.createTrialUser({
+      telegramId: Number(user.telegramId),
+      trafficLimitBytes: gbToBytes(1),
+      expiresAt,
+      squadUuids: getPlanSquadUuids(plan),
+      orderId: order.id
+    });
+    const subscriptionUrl = await remnawaveClient.getSubscriptionUrl(remoteUser.uuid);
+
+    await prisma.$transaction(async (tx) => {
+      const service = await tx.purchasedService.create({
+        data: {
+          userId,
+          orderId: order.id,
+          planId,
+          remnawaveUserUuid: remoteUser.uuid,
+          remnawaveShortUuid: remoteUser.shortUuid,
+          username: remoteUser.username,
+          subscriptionUrl,
+          volumeGb: 1,
+          expiresAt
+        }
+      });
+      await tx.order.update({
+        where: { id: order.id },
+        data: {
+          status: "PROVISIONED",
+          finalUsername: remoteUser.username
+        }
+      });
+      await tx.freeTrial.update({
+        where: { userId },
+        data: {
+          serviceId: service.id,
+          remnawaveUserUuid: remoteUser.uuid,
+          username: remoteUser.username,
+          status: "PROVISIONED"
+        }
+      });
+      await tx.auditLog.create({
+        data: {
+          action: "remnawave.user.create_trial",
+          entityType: "order",
+          entityId: order.id,
+          metadata: {
+            remnawaveUserUuid: remoteUser.uuid,
+            telegramId: user.telegramId.toString(),
+            tag: "BOTTEST"
+          }
+        }
+      });
+    });
+
+    return prisma.order.findUniqueOrThrow({
+      where: { id: order.id },
+      include: { user: true, plan: { include: { category: true } } }
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "ساخت تست رایگان ناموفق بود.";
+    await prisma.$transaction([
+      prisma.order.update({ where: { id: order.id }, data: { status: "FAILED", failureReason: message } }),
+      prisma.freeTrial.update({ where: { userId }, data: { status: "FAILED", failureReason: message } })
+    ]);
+    throw error;
+  }
+}
+
 export async function submitCardReceipt(orderId: string, telegramFileId: string) {
   const orderBefore = await prisma.order.findUnique({ where: { id: orderId } });
   if (!orderBefore) {

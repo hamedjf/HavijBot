@@ -10,6 +10,7 @@ import { remnawaveClient } from "../../remnawave/remnawave-client.js";
 import {
   applyDiscountCode,
   applyWalletOffset,
+  createFreeTrialService,
   createRenewalOrder,
   createServiceOrder,
   createWalletTopupOrder,
@@ -55,6 +56,49 @@ export async function handleBuy(ctx: BotContext) {
       ...userNavKeyboard()
     ])
   );
+}
+
+export async function handleFreeTrial(ctx: BotContext) {
+  if (!(await ensureAllowed(ctx))) return;
+  const user = await upsertTelegramUser(ctx);
+  const existingTrial = await prisma.freeTrial.findUnique({ where: { userId: user.id } });
+  if (existingTrial && existingTrial.status !== "FAILED") {
+    await ctx.reply(await getText("trial.alreadyUsed"), Markup.inlineKeyboard(userNavKeyboard()));
+    return;
+  }
+
+  const plans = await prisma.plan.findMany({
+    where: { isEnabled: true, category: { isEnabled: true } },
+    include: { category: true },
+    orderBy: [{ category: { title: "asc" } }, { durationDays: "asc" }, { volumeGb: "asc" }]
+  });
+
+  if (plans.length === 0) {
+    await ctx.reply(await getText("trial.noPlans"), Markup.inlineKeyboard(userNavKeyboard()));
+    return;
+  }
+
+  await ctx.reply(
+    await getText("trial.selectPlan"),
+    Markup.inlineKeyboard([
+      ...plans.map((plan) => [Markup.button.callback(`${plan.category.title} / ${plan.title}`, `trial_plan:${plan.id}`)]),
+      ...userNavKeyboard()
+    ])
+  );
+}
+
+export async function handleFreeTrialPlan(ctx: BotContext, planId: string) {
+  if (!(await ensureAllowed(ctx))) return;
+  const user = await upsertTelegramUser(ctx);
+  await ctx.reply(await getText("trial.creating"));
+
+  try {
+    const order = await createFreeTrialService(user.id, planId);
+    await sendProvisionedService(ctx, order.id);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : await getText("trial.failed");
+    await ctx.reply(`❌ ${message}`, Markup.inlineKeyboard(userNavKeyboard()));
+  }
 }
 
 export async function handleCategory(ctx: BotContext, categoryId: string) {

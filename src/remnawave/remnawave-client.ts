@@ -15,8 +15,11 @@ export type CreateUserInput = {
   orderId: string;
 };
 
+export type CreateTrialUserInput = Omit<CreateUserInput, "username">;
+
 export type RemnawaveUser = {
   uuid: string;
+  remnawaveId?: number;
   username: string;
   shortUuid?: string;
   subscriptionUrl?: string;
@@ -106,6 +109,53 @@ export class RemnawaveClient {
       "Remnawave user created"
     );
     return user;
+  }
+
+  async createTrialUser(input: CreateTrialUserInput): Promise<RemnawaveUser> {
+    const tempUsername = `test_${input.telegramId}_${Date.now()}`;
+    const payload = {
+      username: tempUsername,
+      status: "ACTIVE",
+      isActive: true,
+      enabled: true,
+      trafficLimitBytes: input.trafficLimitBytes,
+      trafficLimitStrategy: "NO_RESET",
+      expireAt: input.expiresAt.toISOString(),
+      expiresAt: input.expiresAt.toISOString(),
+      telegramId: input.telegramId,
+      tag: "BOTTEST",
+      activeInternalSquads: input.squadUuids,
+      internalSquads: input.squadUuids,
+      description: `HavijBot free trial ${input.orderId}`
+    };
+
+    logger.info(
+      {
+        action: "remnawave.createTrialUser",
+        orderId: input.orderId,
+        telegramId: input.telegramId
+      },
+      "Creating Remnawave trial user"
+    );
+
+    const createResponse = await this.#safeRequest(() => this.http.post("/api/users", payload), "create trial user");
+    const createdUser = normalizeUser(createResponse.data);
+    if (!createdUser.remnawaveId) {
+      return createdUser;
+    }
+
+    const finalUsername = `test${createdUser.remnawaveId}`;
+    const updateResponse = await this.#safeRequest(
+      () =>
+        this.http.patch("/api/users", {
+          uuid: createdUser.uuid,
+          username: finalUsername,
+          tag: "BOTTEST"
+        }),
+      "rename trial user"
+    );
+
+    return normalizeUser(updateResponse.data);
   }
 
   async getUser(usernameOrUuid: string): Promise<RemnawaveUser | null> {
@@ -315,6 +365,7 @@ function normalizeUser(raw: unknown): RemnawaveUser {
 
   return {
     uuid,
+    remnawaveId: firstNumber(data, ["id"]),
     username,
     shortUuid: firstString(data, ["shortUuid", "short_uuid", "subscriptionUuid"]),
     subscriptionUrl: firstString(data, ["subscriptionUrl", "subscription_url", "subUrl"]),

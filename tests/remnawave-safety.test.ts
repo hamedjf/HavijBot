@@ -4,6 +4,7 @@ import { getPublicRemnawaveMethods } from "../src/remnawave/safety.test-helper.j
 describe("Remnawave safety boundary", () => {
   it("exposes only user/subscription read-create methods", () => {
     expect(getPublicRemnawaveMethods()).toEqual([
+      "createTrialUser",
       "createUser",
       "extendUserTrafficAndExpiry",
       "getSubscriptionConfigs",

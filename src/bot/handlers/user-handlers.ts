@@ -526,18 +526,20 @@ export async function handleSupport(ctx: BotContext) {
 }
 
 export async function sendProvisionedService(ctx: BotContext, orderId: string) {
-  const service = await prisma.purchasedService.findUnique({ where: { orderId } });
+  const service = await prisma.purchasedService.findUnique({ where: { orderId }, include: { freeTrial: true } });
   if (!service) {
     await ctx.reply("⚠️ سرویس ساخته شد، اما رکورد داخلی آن پیدا نشد.\nلطفا موضوع را به پشتیبانی اطلاع دهید.");
     return;
   }
 
   const qr = await remnawaveClient.getSubscriptionQr(service.remnawaveUserUuid);
+  const isFreeTrial = Boolean(service.freeTrial);
   await ctx.replyWithPhoto(
     { source: qr },
     {
       caption: [
-        "✅ سرویس شما آماده است",
+        isFreeTrial ? "✅ تست رایگان شما آماده است" : "✅ سرویس شما آماده است",
+        isFreeTrial ? "🎁 این اکانت تست رایگان ۲ روزه با حجم ۱ گیگابایت است." : undefined,
         "",
         `👤 نام کاربری: ${service.username}`,
         "",
@@ -548,7 +550,7 @@ export async function sendProvisionedService(ctx: BotContext, orderId: string) {
         "اگر روی لینک بزنید، صفحه اطلاعات ساب شما هم باز می‌شود.",
         "",
         "برای دریافت کانفیگ‌های تکی، از دکمه زیر استفاده کنید."
-      ].join("\n"),
+      ].filter(Boolean).join("\n"),
       reply_markup: Markup.inlineKeyboard([
         [Markup.button.url("🔗 باز کردن لینک ساب", service.subscriptionUrl)],
         [Markup.button.callback("📋 دریافت دستی کانفیگ‌ها", `configs:${service.id}`)],

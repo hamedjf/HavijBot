@@ -75,7 +75,7 @@ export async function handleCategory(ctx: BotContext, categoryId: string) {
     Markup.inlineKeyboard(
       [
         ...plans.map((plan) => [
-          Markup.button.callback(plan.title, `plan:${plan.id}`)
+          Markup.button.callback(formatPlanButton(plan), `plan:${plan.id}`)
         ]),
         ...userNavKeyboard("buy")
       ]
@@ -635,6 +635,10 @@ function copyTextButton(label: string, text: string) {
 }
 
 function formatRenewalPlanButton(plan: { title: string; volumeGb: number; durationDays: number; priceToman: number }) {
+  return `${plan.title} - ${formatToman(plan.priceToman)}`;
+}
+
+function formatPlanButton(plan: { title: string; priceToman: number }) {
   return `${plan.title} - ${formatToman(plan.priceToman)}`;
 }
 

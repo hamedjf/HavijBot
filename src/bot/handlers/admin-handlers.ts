@@ -7,7 +7,7 @@ import { approvePayment, rejectPayment } from "../../services/order-service.js";
 import { getCardToCardText, setCardToCardText } from "../../services/settings-service.js";
 import { getTextDefinition, resetText, setText, TEXT_DEFINITIONS } from "../../services/text-service.js";
 import { adminMenu } from "../keyboards.js";
-import { isAdmin } from "../membership.js";
+import { getMembershipDiagnostics, isAdmin } from "../membership.js";
 
 export async function handleAdmin(ctx: BotContext) {
   if (!ensureAdmin(ctx)) return;
@@ -56,6 +56,11 @@ export async function startBroadcast(ctx: BotContext) {
   if (!ensureAdmin(ctx)) return;
   ctx.session = { flow: "admin_broadcast" };
   await ctx.reply("📣 متن پیام همگانی را ارسال کنید.\n\nاین پیام برای همه کاربران ثبت‌شده ارسال می‌شود.");
+}
+
+export async function handleMembershipDebug(ctx: BotContext) {
+  if (!ensureAdmin(ctx)) return;
+  await ctx.reply(await getMembershipDiagnostics(ctx));
 }
 
 export async function handleBroadcastText(ctx: BotContext, text: string) {

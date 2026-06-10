@@ -20,7 +20,8 @@ export type SessionState = {
     | "admin_discount"
     | "admin_text_value"
     | "admin_broadcast"
-    | "admin_card_text";
+    | "admin_card_text"
+    | "admin_import_service";
   planId?: string;
   orderId?: string;
   renewalServiceId?: string;

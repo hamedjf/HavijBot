@@ -29,6 +29,7 @@ import {
   handleEditCategoryText,
   handleEditPlanText,
   handleEditTextValue,
+  handleImportServiceText,
   handlePendingPayments,
   handlePlanCategorySelected,
   handlePlanDetail,
@@ -45,6 +46,7 @@ import {
   startEditPlan,
   startEditText,
   startEditCardText,
+  startImportService,
   startAddCategory,
   startAddDiscount,
   startAddContent,
@@ -298,6 +300,10 @@ export function createBot() {
     await ctx.answerCbQuery();
     await startAddPlan(ctx);
   });
+  bot.action("admin:import_service", async (ctx) => {
+    await ctx.answerCbQuery();
+    await startImportService(ctx);
+  });
   bot.action(/^admin:plan_category:(.+)$/, async (ctx) => {
     await ctx.answerCbQuery();
     await handlePlanCategorySelected(ctx, ctx.match[1]);
@@ -404,6 +410,9 @@ export function createBot() {
         break;
       case "admin_broadcast":
         await handleBroadcastText(ctx, text);
+        break;
+      case "admin_import_service":
+        await handleImportServiceText(ctx, text);
         break;
       case "admin_card_text":
         await handleEditCardText(ctx, text);

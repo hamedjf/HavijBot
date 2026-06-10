@@ -34,6 +34,7 @@ export function adminMenu() {
     [Markup.button.callback("💳 متن کارت‌به‌کارت", "admin:card_text")],
     [Markup.button.callback("🗂 دسته‌بندی‌ها", "admin:categories"), Markup.button.callback("📦 پلن‌ها", "admin:plans")],
     [Markup.button.callback("➕ افزودن دسته‌بندی", "admin:add_category"), Markup.button.callback("➕ افزودن پلن", "admin:add_plan")],
+    [Markup.button.callback("🔗 اختصاص سرویس موجود", "admin:import_service")],
     [Markup.button.callback("🎟 افزودن کد تخفیف", "admin:add_discount")],
     [Markup.button.callback("🎟 کدهای تخفیف", "admin:discounts")],
     [Markup.button.callback("✏️ متن‌های ربات", "admin:texts")],

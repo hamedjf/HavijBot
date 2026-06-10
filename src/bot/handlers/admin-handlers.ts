@@ -1,8 +1,10 @@
 ﻿import { Markup } from "telegraf";
 import type { BotContext } from "../context.js";
 import { prisma } from "../../db.js";
-import { formatDays, formatGb, formatToman } from "../../domain/format.js";
+import { bytesToGb, formatDays, formatGb, formatToman } from "../../domain/format.js";
+import { expirationFromNow } from "../../domain/plans.js";
 import { logger } from "../../logger.js";
+import { remnawaveClient } from "../../remnawave/remnawave-client.js";
 import { approvePayment, rejectPayment } from "../../services/order-service.js";
 import { getCardToCardText, setCardToCardText } from "../../services/settings-service.js";
 import { getTextDefinition, resetText, setText, TEXT_DEFINITIONS } from "../../services/text-service.js";
@@ -56,6 +58,139 @@ export async function startBroadcast(ctx: BotContext) {
   if (!ensureAdmin(ctx)) return;
   ctx.session = { flow: "admin_broadcast" };
   await ctx.reply("📣 متن پیام همگانی را ارسال کنید.\n\nاین پیام برای همه کاربران ثبت‌شده ارسال می‌شود.");
+}
+
+export async function startImportService(ctx: BotContext) {
+  if (!ensureAdmin(ctx)) return;
+  const plans = await prisma.plan.findMany({
+    where: { isEnabled: true },
+    include: { category: true },
+    orderBy: [{ category: { title: "asc" } }, { volumeGb: "asc" }],
+    take: 20
+  });
+  ctx.session = { flow: "admin_import_service" };
+  await ctx.reply(
+    [
+      "🔗 اختصاص سرویس موجود Remnawave",
+      "",
+      "فرمت را اینطور ارسال کنید:",
+      "telegram_id | remnawave_username_or_uuid | plan_id",
+      "",
+      "مثال:",
+      "123456789 | hooshang_vip | plan_uuid",
+      "",
+      "کاربر باید حداقل یکبار bot را start کرده باشد.",
+      "",
+      plans.length > 0 ? "پلن‌های فعال:" : "پلن فعالی پیدا نشد؛ اول یک پلن بسازید.",
+      ...plans.map((plan) => `${plan.category.title} / ${plan.title} / ${formatGb(plan.volumeGb)} / ${formatToman(plan.priceToman)}\n${plan.id}`)
+    ].join("\n")
+  );
+}
+
+export async function handleImportServiceText(ctx: BotContext, text: string) {
+  if (!ensureAdmin(ctx)) return;
+  const [telegramIdRaw, remnawaveIdRaw, planIdRaw] = splitParts(text, 3);
+  const telegramIdText = telegramIdRaw?.replace(/[^\d]/g, "");
+  const telegramId = telegramIdText ? BigInt(telegramIdText) : null;
+  const remnawaveIdentifier = remnawaveIdRaw?.trim();
+  const planId = planIdRaw?.trim();
+
+  if (!telegramId || !remnawaveIdentifier || !planId) {
+    await ctx.reply("❌ فرمت درست نیست.\ntelegram_id | remnawave_username_or_uuid | plan_id");
+    return;
+  }
+
+  const user = await prisma.telegramUser.findUnique({ where: { telegramId } });
+  if (!user) {
+    await ctx.reply("❌ این کاربر هنوز bot را start نکرده و در دیتابیس نیست.");
+    return;
+  }
+
+  const plan = await prisma.plan.findUnique({ where: { id: planId }, include: { category: true } });
+  if (!plan) {
+    await ctx.reply("❌ پلن پیدا نشد.");
+    return;
+  }
+
+  try {
+    const remoteUser = await remnawaveClient.getUser(remnawaveIdentifier);
+    if (!remoteUser) {
+      await ctx.reply("❌ پروفایل در Remnawave پیدا نشد.");
+      return;
+    }
+
+    const existingService = await prisma.purchasedService.findFirst({ where: { remnawaveUserUuid: remoteUser.uuid } });
+    if (existingService) {
+      await ctx.reply("⚠️ این پروفایل قبلا به یک کاربر bot اختصاص داده شده است.");
+      return;
+    }
+
+    const subscriptionUrl = await remnawaveClient.getSubscriptionUrl(remoteUser.uuid);
+    const volumeGb = remoteUser.trafficLimitBytes ? Math.ceil(bytesToGb(remoteUser.trafficLimitBytes)) : plan.volumeGb;
+    const expiresAt = remoteUser.expiresAt ?? expirationFromNow(plan.durationDays);
+
+    const service = await prisma.$transaction(async (tx) => {
+      const order = await tx.order.create({
+        data: {
+          userId: user.id,
+          type: "SERVICE_PURCHASE",
+          status: "PROVISIONED",
+          paymentMethod: "CARD_TO_CARD",
+          amountToman: 0,
+          cardAmountToman: 0,
+          planId: plan.id,
+          requestedUsername: remoteUser.username,
+          finalUsername: remoteUser.username
+        }
+      });
+
+      const importedService = await tx.purchasedService.create({
+        data: {
+          userId: user.id,
+          orderId: order.id,
+          planId: plan.id,
+          remnawaveUserUuid: remoteUser.uuid,
+          remnawaveShortUuid: remoteUser.shortUuid,
+          username: remoteUser.username,
+          subscriptionUrl,
+          volumeGb,
+          expiresAt
+        }
+      });
+
+      await tx.auditLog.create({
+        data: {
+          actorTelegramId: BigInt(ctx.from!.id),
+          action: "remnawave.user.import",
+          entityType: "purchased_service",
+          entityId: importedService.id,
+          metadata: {
+            remnawaveUserUuid: remoteUser.uuid,
+            telegramId: user.telegramId.toString(),
+            planId: plan.id
+          }
+        }
+      });
+
+      return importedService;
+    });
+
+    ctx.session = {};
+    await ctx.reply(
+      [
+        "✅ سرویس موجود با موفقیت به کاربر اختصاص داده شد.",
+        "",
+        `کاربر: ${user.username ? `@${user.username}` : user.telegramId.toString()}`,
+        `پروفایل: ${service.username}`,
+        `پلن: ${plan.category.title} / ${plan.title}`
+      ].join("\n")
+    );
+    await sendServiceToUser(ctx, Number(user.telegramId), service.id);
+    await handleAdmin(ctx);
+  } catch (error) {
+    logger.error({ err: error, remnawaveIdentifier, telegramId: telegramId.toString(), planId }, "Existing Remnawave service import failed");
+    await ctx.reply(error instanceof Error ? `❌ اختصاص سرویس ناموفق بود.\n${error.message}` : "❌ اختصاص سرویس ناموفق بود.");
+  }
 }
 
 export async function handleBroadcastText(ctx: BotContext, text: string) {
@@ -370,6 +505,7 @@ export async function handlePlanDetail(ctx: BotContext, planId: string) {
   await ctx.reply(
     [
       `دسته‌بندی: ${plan.category.title}`,
+      `شناسه پلن: ${plan.id}`,
       `عنوان: ${plan.title}`,
       `حجم: ${formatGb(plan.volumeGb)}`,
       `مدت: ${formatDays(plan.durationDays)}`,

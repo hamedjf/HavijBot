@@ -478,14 +478,20 @@ export async function renewService(orderId: string): Promise<Order> {
 }
 
 async function reserveRemnawaveUsername(requestedUsername: string): Promise<string> {
-  let candidate = sanitizeUsername(requestedUsername);
+  const baseUsername = sanitizeUsername(requestedUsername);
+  const checkedCandidates = new Set<string>();
 
-  for (let attempt = 0; attempt < 5; attempt += 1) {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const candidate = attempt === 0 ? baseUsername : withRandomSuffix(baseUsername);
+    if (checkedCandidates.has(candidate)) {
+      continue;
+    }
+    checkedCandidates.add(candidate);
+
     const existing = await remnawaveClient.getUser(candidate);
     if (!existing) {
       return candidate;
     }
-    candidate = withRandomSuffix(candidate);
   }
 
   throw new Error("نام کاربری غیرتکراری پیدا نشد.");

@@ -357,11 +357,15 @@ export async function handleRenewService(ctx: BotContext, serviceId: string) {
 
   ctx.session.renewalServiceId = service.id;
   await ctx.reply(
-    "🔄 پلن تمدید را انتخاب کنید:",
+    [
+      "🔄 پلن تمدید را انتخاب کنید:",
+      "",
+      "توجه داشته باشید که این حجم و روز به سرویس شما اضافه خواهد شد و سرویس ریست نخواهد شد!"
+    ].join("\n"),
     Markup.inlineKeyboard([
       ...renewalPlans.map((renewalPlan) => [
         Markup.button.callback(
-          `${renewalPlan.title} / ${formatGb(renewalPlan.volumeGb)} / ${formatDays(renewalPlan.durationDays)} / ${formatToman(renewalPlan.priceToman)}`,
+          formatRenewalPlanButton(renewalPlan),
           `renew_plan:${renewalPlan.id}`
         )
       ]),
@@ -628,6 +632,10 @@ async function getCardCopyKeyboard(orderId: string) {
 
 function copyTextButton(label: string, text: string) {
   return { text: label, copy_text: { text } } as never;
+}
+
+function formatRenewalPlanButton(plan: { title: string; volumeGb: number; durationDays: number; priceToman: number }) {
+  return `${plan.title} - ${formatGb(plan.volumeGb)} - ${formatDays(plan.durationDays)} - ${formatToman(plan.priceToman)}`;
 }
 
 function extractCardNumber(cardText: string) {

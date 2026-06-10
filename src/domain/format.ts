@@ -3,11 +3,11 @@ export function formatToman(value: number): string {
 }
 
 export function formatGb(value: number): string {
-  return `${new Intl.NumberFormat("en-US").format(value)} GB`;
+  return `${new Intl.NumberFormat("en-US").format(value)} گیگ`;
 }
 
 export function formatDays(value: number): string {
-  return `${value} روز`;
+  return `${new Intl.NumberFormat("en-US").format(value)} روز`;
 }
 
 export function bytesToGb(bytes: number): number {

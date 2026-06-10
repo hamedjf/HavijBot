@@ -12,7 +12,7 @@ const envSchema = z.object({
   REMNAWAVE_BASE_URL: z.string().url(),
   REMNAWAVE_API_TOKEN: z.string().min(1),
   CARD_TO_CARD_TEXT: z.string().min(1),
-  REFERRAL_REWARD_TOMAN: z.coerce.number().int().nonnegative().default(30000)
+  REFERRAL_REWARD_PERCENT: z.coerce.number().nonnegative().max(100).default(7)
 });
 
 const parsed = envSchema.parse(process.env);

@@ -341,6 +341,15 @@ export function createBot() {
     await ctx.reply("📸 لطفا اسکرین‌شات رسید را به‌صورت عکس ارسال کنید.");
   });
 
+  bot.on("video", async (ctx) => {
+    const message = ctx.message as Message.VideoMessage;
+    if (ctx.session.flow === "admin_content") {
+      await handleAddContentFile(ctx, message.video.file_id, "VIDEO", message.caption);
+      return;
+    }
+    await replyMainMenu(ctx);
+  });
+
   bot.on("text", async (ctx) => {
     const text = ctx.message.text.trim();
     if (await handleMainKeyboardText(ctx, text)) {

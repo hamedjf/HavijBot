@@ -164,7 +164,7 @@ export async function handleApplyWallet(ctx: BotContext, orderId: string) {
     );
     if (due === 0) {
       const paidOrder = await finalizeWalletCoveredOrder(order.id);
-      await notifyAdminsInstantPayment(ctx, paidOrder.id, "Tasvie kamel ba kife pool/takhfif");
+      await notifyAdminsInstantPayment(ctx, paidOrder.id, "تسویه کامل با کیف پول/تخفیف");
       if (paidOrder.type === "SERVICE_RENEWAL") {
         await sendRenewedService(ctx, paidOrder.id);
       } else {
@@ -234,8 +234,8 @@ export async function handleReceiptPhoto(ctx: BotContext, fileId: string) {
       caption,
       reply_markup: Markup.inlineKeyboard([
         [
-          Markup.button.callback("Taeed", `admin:approve:${receipt.id}`),
-          Markup.button.callback("Rad", `admin:reject:${receipt.id}`)
+          Markup.button.callback("✅ تایید", `admin:approve:${receipt.id}`),
+          Markup.button.callback("❌ رد", `admin:reject:${receipt.id}`)
         ]
       ]).reply_markup
     })));
@@ -395,7 +395,7 @@ export async function handleReferral(ctx: BotContext) {
   const botInfo = await ctx.telegram.getMe();
   const link = `https://t.me/${botInfo.username}?start=ref_${user.referralCode}`;
   const balance = await getWalletBalance(user.id);
-  await ctx.reply(await getText("referral.message", { link, reward: formatToman(config.REFERRAL_REWARD_TOMAN), balance: formatToman(balance) }));
+  await ctx.reply(await getText("referral.message", { link, rewardPercent: config.REFERRAL_REWARD_PERCENT.toString(), balance: formatToman(balance) }));
 }
 
 export async function handleContent(ctx: BotContext, kind: "TRAINING" | "SOFTWARE") {
@@ -432,6 +432,8 @@ export async function handleContentItem(ctx: BotContext, itemId: string) {
     await ctx.replyWithPhoto(item.telegramFileId, { caption });
   } else if (item.telegramFileId && item.contentType === "DOCUMENT") {
     await ctx.replyWithDocument(item.telegramFileId, { caption });
+  } else if (item.telegramFileId && item.contentType === "VIDEO") {
+    await ctx.replyWithVideo(item.telegramFileId, { caption });
   } else {
     await ctx.reply(caption);
   }
@@ -545,18 +547,18 @@ type AdminPaymentSummaryInput = {
 function buildAdminPaymentSummary(order: AdminPaymentSummaryInput) {
   const userLabel = order.user ? order.user.username ? `@${order.user.username}` : order.user.telegramId.toString() : "unknown";
   return [
-    "Receipt jadid",
-    `Order: ${order.id}`,
-    `Type: ${order.type}`,
-    `Amount asli: ${formatToman(order.amountToman)}`,
-    `Code takhfif: ${order.discountCode?.code ?? "nadare"}`,
+    "🧾 رسید جدید",
+    `شناسه سفارش: ${order.id}`,
+    `نوع سفارش: ${order.type}`,
+    `مبلغ اصلی: ${formatToman(order.amountToman)}`,
+    `کد تخفیف: ${order.discountCode?.code ?? "ندارد"}`,
     `مبلغ تخفیف: ${formatToman(order.discountAmountToman)}`,
-    `Masraf az kife pool: ${formatToman(order.walletAppliedToman)}`,
+    `پرداخت از کیف پول: ${formatToman(order.walletAppliedToman)}`,
     `مبلغ کارت‌به‌کارت: ${formatToman(order.cardAmountToman ?? 0)}`,
     `مبلغ واریز به ریال: ${new Intl.NumberFormat("en-US").format((order.cardAmountToman ?? 0) * 10)} ریال`,
-    `User: ${userLabel}`,
-    order.plan ? `Plan: ${order.plan.category.title} / ${order.plan.title}` : undefined,
-    order.targetService ? `Tamdid: ${order.targetService.username} / ${order.renewalVolumeGb}GB / ${order.renewalDurationDays} rooz` : undefined
+    `کاربر: ${userLabel}`,
+    order.plan ? `پلن: ${order.plan.category.title} / ${order.plan.title}` : undefined,
+    order.targetService ? `تمدید: ${order.targetService.username} / ${order.renewalVolumeGb}GB / ${order.renewalDurationDays} روز` : undefined
   ]
     .filter(Boolean)
     .join("\n");
@@ -689,5 +691,5 @@ async function sendCheckoutOptions(ctx: BotContext, orderId: string) {
 }
 
 function isMissingRemnawaveUserError(error: unknown): boolean {
-  return error instanceof Error && (error.message.includes("peyda nashod") || error.message.includes("(404)"));
+  return error instanceof Error && (error.message.includes("پیدا نشد") || error.message.includes("(404)"));
 }

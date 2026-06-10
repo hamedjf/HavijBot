@@ -4,6 +4,7 @@ import { createBot } from "./bot/create-bot.js";
 import { logger } from "./logger.js";
 import { prisma } from "./db.js";
 import { startServiceMonitor } from "./services/service-monitor.js";
+import { startAdminDailyReport } from "./services/admin-report.js";
 
 const bot = createBot();
 const app = express();
@@ -21,6 +22,7 @@ const server = app.listen(config.PORT, async () => {
   await bot.telegram.setMyCommands([]);
   await bot.telegram.setWebhook(webhookUrl);
   startServiceMonitor(bot.telegram);
+  startAdminDailyReport(bot.telegram);
   logger.info({ port: config.PORT, webhookUrl }, "HavijBot started");
 });
 

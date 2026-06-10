@@ -4,6 +4,7 @@ import { calculateDiscountAmount, payableAmount, walletOffsetForOrder } from "..
 import { expirationFromNow, gbToBytes } from "../domain/plans.js";
 import { sanitizeUsername, withRandomSuffix } from "../domain/username.js";
 import { remnawaveClient } from "../remnawave/remnawave-client.js";
+import { grantPurchaseReferralReward } from "./referral-service.js";
 import { getWalletBalance } from "./wallet-service.js";
 
 export type OrderWithUserPlan = Order & {
@@ -16,7 +17,7 @@ export async function createServiceOrder(userId: string, planId: string, request
     where: { id: planId, isEnabled: true, category: { isEnabled: true } }
   });
   if (!plan) {
-    throw new Error("Plan faal peyda nashod.");
+    throw new Error("پلن فعال پیدا نشد.");
   }
 
   return prisma.order.create({
@@ -49,11 +50,11 @@ export async function createRenewalOrder(userId: string, serviceId: string, rene
     where: { id: serviceId, userId }
   });
   if (!service) {
-    throw new Error("Service baraye tamdid peyda nashod.");
+    throw new Error("سرویس برای تمدید پیدا نشد.");
   }
   const currentPlan = await prisma.plan.findUnique({ where: { id: service.planId } });
   if (!currentPlan) {
-    throw new Error("Plan feli service peyda nashod.");
+    throw new Error("پلن فعلی سرویس پیدا نشد.");
   }
   const plan = await prisma.plan.findFirst({
     where: {
@@ -64,7 +65,7 @@ export async function createRenewalOrder(userId: string, serviceId: string, rene
     }
   });
   if (!plan) {
-    throw new Error("Plan tamdid faal peyda nashod.");
+    throw new Error("پلن فعال برای تمدید پیدا نشد.");
   }
 
   return prisma.order.create({
@@ -84,11 +85,11 @@ export async function createRenewalOrder(userId: string, serviceId: string, rene
 export async function submitCardReceipt(orderId: string, telegramFileId: string) {
   const orderBefore = await prisma.order.findUnique({ where: { id: orderId } });
   if (!orderBefore) {
-    throw new Error("Order peyda nashod.");
+    throw new Error("سفارش پیدا نشد.");
   }
   const cardAmount = payableAmount(orderBefore.amountToman, orderBefore.discountAmountToman, orderBefore.walletAppliedToman);
   if (cardAmount <= 0) {
-    throw new Error("Mablaghe card-to-card baraye in order sefr ast.");
+    throw new Error("مبلغ کارت‌به‌کارت برای این سفارش صفر است.");
   }
 
   return prisma.$transaction(async (tx) => {
@@ -113,21 +114,21 @@ export async function applyDiscountCode(orderId: string, code: string): Promise<
   const normalizedCode = code.trim().toUpperCase();
   const order = await prisma.order.findUnique({ where: { id: orderId } });
   if (!order) {
-    throw new Error("Order peyda nashod.");
+    throw new Error("سفارش پیدا نشد.");
   }
   if (order.discountCodeId) {
-    throw new Error("Baraye in order ghablan code takhfif sabt shode.");
+    throw new Error("برای این سفارش قبلا کد تخفیف ثبت شده است.");
   }
 
   const discount = await prisma.discountCode.findUnique({ where: { code: normalizedCode } });
   if (!discount || !discount.isEnabled) {
-    throw new Error("Code takhfif motabar nist.");
+    throw new Error("کد تخفیف معتبر نیست.");
   }
   if (discount.expiresAt && discount.expiresAt.getTime() < Date.now()) {
-    throw new Error("Code takhfif expire shode.");
+    throw new Error("کد تخفیف منقضی شده است.");
   }
   if (discount.maxUses !== null && discount.usedCount >= discount.maxUses) {
-    throw new Error("Zarfiat code takhfif tamam shode.");
+    throw new Error("ظرفیت کد تخفیف تمام شده است.");
   }
   if (discount.oneUsePerUser) {
     const existingUsage = await prisma.discountCodeUsage.findUnique({
@@ -140,7 +141,7 @@ export async function applyDiscountCode(orderId: string, code: string): Promise<
 
   const discountAmount = calculateDiscountAmount(order.amountToman, discount);
   if (discountAmount <= 0) {
-    throw new Error("Code takhfif baraye in order mablaghi kam nemikone.");
+    throw new Error("این کد تخفیف مبلغی از سفارش کم نمی‌کند.");
   }
 
   return prisma.$transaction(async (tx) => {
@@ -173,14 +174,14 @@ export async function applyDiscountCode(orderId: string, code: string): Promise<
 export async function applyWalletOffset(orderId: string): Promise<Order> {
   const order = await prisma.order.findUnique({ where: { id: orderId } });
   if (!order) {
-    throw new Error("Order peyda nashod.");
+    throw new Error("سفارش پیدا نشد.");
   }
 
   const balance = await getWalletBalance(order.userId);
   const dueBeforeWallet = payableAmount(order.amountToman, order.discountAmountToman, 0);
   const walletApplied = walletOffsetForOrder(dueBeforeWallet, balance);
   if (walletApplied <= 0) {
-    throw new Error("Mojoodi kife pool baraye kam kardan vojood nadare.");
+    throw new Error("موجودی کیف پول برای کم کردن از سفارش کافی نیست.");
   }
 
   const cardAmount = payableAmount(order.amountToman, order.discountAmountToman, walletApplied);
@@ -206,7 +207,7 @@ export async function finalizeWalletCoveredOrder(orderId: string): Promise<Order
 
   const due = payableAmount(order.amountToman, order.discountAmountToman, order.walletAppliedToman);
   if (due > 0) {
-    throw new Error("In order hanooz mablaghe card-to-card dare.");
+    throw new Error("این سفارش هنوز مبلغ کارت‌به‌کارت دارد.");
   }
   if (order.walletAppliedToman <= 0 && order.discountAmountToman < order.amountToman) {
     throw new Error("مبلغ سفارش با کیف پول یا تخفیف تکمیل نشد.");
@@ -236,7 +237,7 @@ export async function finalizeWalletCoveredOrder(orderId: string): Promise<Order
 export async function getOrderPayable(orderId: string): Promise<{ order: Order; due: number }> {
   const order = await prisma.order.findUnique({ where: { id: orderId } });
   if (!order) {
-    throw new Error("Order peyda nashod.");
+    throw new Error("سفارش پیدا نشد.");
   }
   return { order, due: payableAmount(order.amountToman, order.discountAmountToman, order.walletAppliedToman) };
 }
@@ -302,7 +303,7 @@ export async function approvePayment(receiptId: string, adminTelegramId: number)
   return prisma.order.findUniqueOrThrow({ where: { id: receipt.orderId } });
 }
 
-export async function rejectPayment(receiptId: string, adminTelegramId: number, note = "Tarakonesh eshtebah ast.") {
+export async function rejectPayment(receiptId: string, adminTelegramId: number, note = "تراکنش اشتباه است.") {
   return prisma.$transaction(async (tx) => {
     const receipt = await tx.paymentReceipt.update({
       where: { id: receiptId },
@@ -385,6 +386,8 @@ export async function provisionService(orderId: string): Promise<OrderWithUserPl
       });
     });
 
+    await grantPurchaseReferralReward(order.id);
+
     return prisma.order.findUniqueOrThrow({
       where: { id: order.id },
       include: { user: true, plan: { include: { category: true } } }
@@ -394,7 +397,7 @@ export async function provisionService(orderId: string): Promise<OrderWithUserPl
       where: { id: order.id },
       data: {
         status: "FAILED",
-        failureReason: error instanceof Error ? error.message : "Provisioning failed"
+        failureReason: error instanceof Error ? error.message : "ساخت سرویس ناموفق بود."
       }
     });
     throw error;
@@ -408,7 +411,7 @@ export async function renewService(orderId: string): Promise<Order> {
   });
 
   if (!order || !order.targetService || !order.renewalVolumeGb || !order.renewalDurationDays) {
-    throw new Error("Order tamdid ya service peyda nashod.");
+    throw new Error("سفارش تمدید یا سرویس پیدا نشد.");
   }
 
   const targetService = order.targetService;
@@ -459,13 +462,15 @@ export async function renewService(orderId: string): Promise<Order> {
       });
     });
 
+    await grantPurchaseReferralReward(order.id);
+
     return prisma.order.findUniqueOrThrow({ where: { id: order.id } });
   } catch (error) {
     await prisma.order.update({
       where: { id: order.id },
       data: {
         status: "FAILED",
-        failureReason: error instanceof Error ? error.message : "Renewal failed"
+        failureReason: error instanceof Error ? error.message : "تمدید سرویس ناموفق بود."
       }
     });
     throw error;
@@ -483,7 +488,7 @@ async function reserveRemnawaveUsername(requestedUsername: string): Promise<stri
     candidate = withRandomSuffix(candidate);
   }
 
-  throw new Error("Username gheire tekrari peyda nashod.");
+  throw new Error("نام کاربری غیرتکراری پیدا نشد.");
 }
 
 function addDaysFromBase(baseDate: Date, days: number): Date {

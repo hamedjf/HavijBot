@@ -545,7 +545,7 @@ export async function handleApprove(ctx: BotContext, receiptId: string) {
       [
         "❌ تایید پرداخت ناموفق بود.",
         failureReason ? `دلیل: ${failureReason}` : error instanceof Error ? `دلیل: ${error.message}` : undefined,
-        "اگر رسید تایید شده اما سفارش failed شده، لاگ Render را بررسی کنید."
+        "اگر رسید تایید شده اما سفارش ناموفق شده، لاگ Render را بررسی کنید."
       ]
         .filter(Boolean)
         .join("\n")
@@ -770,7 +770,16 @@ export async function startAddContent(ctx: BotContext, kind: "TRAINING" | "SOFTW
   if (!ensureAdmin(ctx)) return;
   ctx.session.flow = "admin_content";
   ctx.session.contentKind = kind;
-  await ctx.reply("محتوا را با این فرمت ارسال کنید:\nعنوان | متن یا لینک\n\nبرای فایل/عکس هم کپشن را همین‌طور بنویسید.");
+  await ctx.reply(
+    [
+      "محتوا را با این فرمت ارسال کنید:",
+      "",
+      "عنوان | متن یا لینک",
+      "",
+      "برای فایل، عکس یا ویدیو هم همان فایل را بفرستید و کپشن را همین فرمت بگذارید.",
+      "کاربر عنوان را به صورت دکمه می‌بیند و با زدن آن، محتوا برایش ارسال می‌شود."
+    ].join("\n")
+  );
 }
 
 export async function handleAddContentText(ctx: BotContext, text: string) {
@@ -793,7 +802,7 @@ export async function handleAddContentText(ctx: BotContext, text: string) {
   await ctx.reply("✅ محتوا ثبت شد.");
 }
 
-export async function handleAddContentFile(ctx: BotContext, fileId: string, fileType: "PHOTO" | "DOCUMENT", caption?: string) {
+export async function handleAddContentFile(ctx: BotContext, fileId: string, fileType: "PHOTO" | "DOCUMENT" | "VIDEO", caption?: string) {
   if (!ensureAdmin(ctx)) return;
   const [title, body] = splitParts(caption ?? "", 2);
   if (!title) {

@@ -7,7 +7,7 @@ export function formatGb(value: number): string {
 }
 
 export function formatDays(value: number): string {
-  return `${value} rooz`;
+  return `${value} روز`;
 }
 
 export function bytesToGb(bytes: number): number {

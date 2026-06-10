@@ -1,14 +1,11 @@
 import type { Context } from "telegraf";
-import { config } from "../config.js";
 import { prisma } from "../db.js";
-import { formatToman } from "../domain/format.js";
 import { makeReferralCode } from "../domain/referral.js";
-import { getWalletBalance } from "./wallet-service.js";
 
 export async function upsertTelegramUser(ctx: Context, referralCode?: string | null) {
   const from = ctx.from;
   if (!from) {
-    throw new Error("Telegram user peyda nashod.");
+    throw new Error("کاربر تلگرام پیدا نشد.");
   }
 
   const ownReferralCode = makeReferralCode(from.id);
@@ -31,59 +28,27 @@ export async function upsertTelegramUser(ctx: Context, referralCode?: string | n
   });
 
   if (!existingUser && referralCode && referralCode !== ownReferralCode) {
-    const rewardedReferrer = await grantReferralReward(user.id, referralCode);
-    if (rewardedReferrer) {
-      await notifyReferralReward(ctx, rewardedReferrer.id, Number(rewardedReferrer.telegramId));
-    }
+    await attachReferral(user.id, referralCode);
   }
 
   return prisma.telegramUser.findUniqueOrThrow({ where: { id: user.id } });
 }
 
-async function grantReferralReward(newUserId: string, referralCode: string) {
+async function attachReferral(newUserId: string, referralCode: string) {
   const referrer = await prisma.telegramUser.findUnique({ where: { referralCode } });
-  if (!referrer || config.REFERRAL_REWARD_TOMAN <= 0) {
-    return null;
+  if (!referrer) {
+    return;
   }
 
-  const rewarded = await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx) => {
     const newUser = await tx.telegramUser.findUnique({ where: { id: newUserId } });
-    if (!newUser || newUser.referredByUserId || newUser.referralRewardGranted) {
-      return null;
+    if (!newUser || newUser.referredByUserId || newUser.id === referrer.id) {
+      return;
     }
 
     await tx.telegramUser.update({
       where: { id: newUserId },
-      data: {
-        referredByUserId: referrer.id,
-        referralRewardGranted: true
-      }
+      data: { referredByUserId: referrer.id }
     });
-    await tx.walletTransaction.create({
-      data: {
-        userId: referrer.id,
-        type: "REFERRAL_REWARD",
-        amountToman: config.REFERRAL_REWARD_TOMAN,
-        description: `Referral reward for Telegram ${newUser.telegramId.toString()}`
-      }
-    });
-
-    return { id: referrer.id, telegramId: referrer.telegramId };
   });
-
-  return rewarded;
-}
-
-async function notifyReferralReward(ctx: Context, referrerId: string, referrerTelegramId: number) {
-  const balance = await getWalletBalance(referrerId);
-  await ctx.telegram
-    .sendMessage(
-      referrerTelegramId,
-      [
-        "🎉 تبریک، یک نفر با لینک دعوت شما وارد ربات شد.",
-        "",
-        `💰 موجودی جدید کیف پول شما: ${formatToman(balance)}`
-      ].join("\n")
-    )
-    .catch(() => null);
 }

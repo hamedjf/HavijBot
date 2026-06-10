@@ -65,5 +65,5 @@ async function checkPurchasedServices(telegram: Telegram) {
 }
 
 function isMissingRemnawaveUserError(error: unknown): boolean {
-  return error instanceof Error && (error.message.includes("peyda nashod") || error.message.includes("(404)"));
+  return error instanceof Error && (error.message.includes("پیدا نشد") || error.message.includes("(404)"));
 }

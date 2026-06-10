@@ -130,7 +130,7 @@ export class RemnawaveClient {
   async getUserUsage(usernameOrUuid: string): Promise<RemnawaveUsage> {
     const user = await this.getUser(usernameOrUuid);
     if (!user) {
-      throw new Error("Remnawave user peyda nashod.");
+      throw new Error("کاربر در Remnawave پیدا نشد.");
     }
 
     return {
@@ -144,7 +144,7 @@ export class RemnawaveClient {
   async getSubscriptionUrl(usernameOrUuid: string): Promise<string> {
     const user = await this.getUser(usernameOrUuid);
     if (!user) {
-      throw new Error("Remnawave user peyda nashod.");
+      throw new Error("کاربر در Remnawave پیدا نشد.");
     }
 
     if (user.subscriptionUrl) {
@@ -155,7 +155,7 @@ export class RemnawaveClient {
       return `${config.REMNAWAVE_BASE_URL.replace(/\/$/, "")}/sub/${user.shortUuid}`;
     }
 
-    throw new Error("Subscription URL az Remnawave response peyda nashod.");
+    throw new Error("لینک ساب از پاسخ Remnawave پیدا نشد.");
   }
 
   async getSubscriptionQr(usernameOrUuid: string): Promise<Buffer> {
@@ -185,7 +185,7 @@ export class RemnawaveClient {
   async extendUserTrafficAndExpiry(input: ExtendUserInput): Promise<RemnawaveUser> {
     const user = await this.getUser(input.userUuid);
     if (!user) {
-      throw new Error("Remnawave user peyda nashod.");
+      throw new Error("کاربر در Remnawave پیدا نشد.");
     }
 
     const currentLimit = user.trafficLimitBytes ?? input.fallbackTrafficLimitBytes;
@@ -207,9 +207,6 @@ export class RemnawaveClient {
     );
 
     const payload = {
-      status: "ACTIVE",
-      isActive: true,
-      enabled: true,
       trafficLimitBytes: nextTrafficLimitBytes,
       trafficLimitStrategy: "NO_RESET",
       expireAt: nextExpiresAt.toISOString(),
@@ -312,7 +309,7 @@ function normalizeUser(raw: unknown): RemnawaveUser {
   const username = firstString(data, ["username", "name"]);
 
   if (!uuid || !username) {
-    throw new Error("Remnawave user response invalid ast.");
+    throw new Error("پاسخ کاربر Remnawave نامعتبر است.");
   }
 
   return {
@@ -413,7 +410,7 @@ function formatAxiosError(error: unknown, action: string): Error {
       },
       "Remnawave request failed"
     );
-    return new Error(`Remnawave ${action} failed${status ? ` (${status})` : ""}: ${responseData}`);
+    return new Error(`درخواست Remnawave ناموفق بود${status ? ` (${status})` : ""}: ${responseData}`);
   }
   return error instanceof Error ? error : new Error(String(error));
 }

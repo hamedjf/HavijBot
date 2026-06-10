@@ -71,6 +71,7 @@ export class RemnawaveClient {
       expireAt: input.expiresAt.toISOString(),
       expiresAt: input.expiresAt.toISOString(),
       telegramId: input.telegramId,
+      tag: "BOT",
       activeInternalSquads: input.squadUuids,
       internalSquads: input.squadUuids,
       description: `HavijBot order ${input.orderId}`

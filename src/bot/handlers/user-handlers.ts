@@ -648,7 +648,7 @@ function formatRenewalPlanButton(plan: { title: string; volumeGb: number; durati
 }
 
 function formatPlanButton(plan: { title: string; priceToman: number }) {
-  return `${plan.title} - ${formatToman(plan.priceToman)}`;
+  return `${plan.title} - 5 کاربره - ${formatToman(plan.priceToman)}`;
 }
 
 function extractCardNumber(cardText: string) {

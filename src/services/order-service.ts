@@ -201,7 +201,7 @@ export async function finalizeWalletCoveredOrder(orderId: string): Promise<Order
   });
 
   if (!order) {
-    throw new Error("Order peyda nashod.");
+    throw new Error("سفارش پیدا نشد!");
   }
 
   const due = payableAmount(order.amountToman, order.discountAmountToman, order.walletAppliedToman);
@@ -209,7 +209,7 @@ export async function finalizeWalletCoveredOrder(orderId: string): Promise<Order
     throw new Error("In order hanooz mablaghe card-to-card dare.");
   }
   if (order.walletAppliedToman <= 0 && order.discountAmountToman < order.amountToman) {
-    throw new Error("Mablagh order ba wallet ya takhfif pooshesh dade nashode.");
+    throw new Error("مبلغ سفارش با کیف پول یا تخفیف تکمیل نشد.");
   }
 
   await prisma.$transaction(async (tx) => {
@@ -220,7 +220,7 @@ export async function finalizeWalletCoveredOrder(orderId: string): Promise<Order
           orderId: order.id,
           type: "PURCHASE",
           amountToman: -order.walletAppliedToman,
-          description: "Pardakht ba kife pool"
+          description: "پرداخت با کیف پول"
         }
       });
     }
@@ -248,7 +248,7 @@ export async function approvePayment(receiptId: string, adminTelegramId: number)
   });
 
   if (!receipt) {
-    throw new Error("Receipt peyda nashod.");
+    throw new Error("رسید پیدا نشد");
   }
 
   await prisma.$transaction(async (tx) => {
@@ -272,7 +272,7 @@ export async function approvePayment(receiptId: string, adminTelegramId: number)
             orderId: receipt.orderId,
             type: "PURCHASE",
             amountToman: -receipt.order.walletAppliedToman,
-            description: "Kam kardan bakhshi az mablagh ba kife pool"
+            description: "کم کردن میزان کیف پول از سفارش"
           }
         });
       }
@@ -285,7 +285,7 @@ export async function approvePayment(receiptId: string, adminTelegramId: number)
           orderId: receipt.orderId,
           type: "TOPUP",
           amountToman: receipt.order.amountToman,
-          description: "Charge kife pool ba card-to-card"
+          description: "شارژ کیف پول با کارت به کارت"
         }
       });
     }
@@ -333,7 +333,7 @@ export async function provisionService(orderId: string): Promise<OrderWithUserPl
   });
 
   if (!order || !order.plan) {
-    throw new Error("Order ya plan peyda nashod.");
+    throw new Error("سفارش یا پلن پیدا نشد.");
   }
 
   await prisma.order.update({ where: { id: order.id }, data: { status: "PROVISIONING" } });

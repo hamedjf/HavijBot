@@ -406,7 +406,16 @@ export async function handleReferral(ctx: BotContext) {
   const botInfo = await ctx.telegram.getMe();
   const link = `https://t.me/${botInfo.username}?start=ref_${user.referralCode}`;
   const balance = await getWalletBalance(user.id);
-  await ctx.reply(await getText("referral.message", { link, rewardPercent: config.REFERRAL_REWARD_PERCENT.toString(), balance: formatToman(balance) }));
+  const invitedCount = await prisma.telegramUser.count({ where: { referredByUserId: user.id } });
+  const referralMessage = await getText("referral.message", {
+    link,
+    rewardPercent: config.REFERRAL_REWARD_PERCENT.toString(),
+    balance: formatToman(balance)
+  });
+  const invitedCountMessage = await getText("referral.invitedCount", { invitedCount: invitedCount.toString() });
+  await ctx.reply(
+    [referralMessage, invitedCountMessage].filter(Boolean).join("\n\n")
+  );
 }
 
 export async function handleContent(ctx: BotContext, kind: "TRAINING" | "SOFTWARE") {

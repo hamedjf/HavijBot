@@ -111,6 +111,11 @@ export const BOT_TEXT_DEFINITIONS = [
     title: "پیام لینک دعوت",
     fallback: "🎁 لینک دعوت شما:\n{{link}}\n\nبا ارسال این لینک برای دوستان خود از پاداش، بهره‌مند شوید.\n\n💰 پاداش شما: {{rewardPercent}}٪ از هر خرید دوست دعوت‌شده\n👛 موجودی فعلی: {{balance}}"
   },
+  {
+    key: "referral.invitedCount",
+    title: "تعداد دعوت‌شده‌ها",
+    fallback: "👥 تعداد اعضایی که با لینک شما وارد ربات شده‌اند: {{invitedCount}} نفر"
+  },
 
   { key: "content.empty", title: "پیام نبودن محتوا", fallback: "📭 هنوز آیتمی ثبت نشده است." },
   { key: "content.select", title: "پیام انتخاب محتوا", fallback: "👇 یکی از موارد زیر را انتخاب کنید:" },

@@ -635,7 +635,7 @@ function copyTextButton(label: string, text: string) {
 }
 
 function formatRenewalPlanButton(plan: { title: string; volumeGb: number; durationDays: number; priceToman: number }) {
-  return `${plan.title} - ${formatGb(plan.volumeGb)} - ${formatDays(plan.durationDays)} - ${formatToman(plan.priceToman)}`;
+  return `${plan.title} - ${formatToman(plan.priceToman)}`;
 }
 
 function extractCardNumber(cardText: string) {
